@@ -9,39 +9,24 @@ import os
 from collections import namedtuple
 import unittest
 
-topicChars = string.ascii_letters + string.digits + string.punctuation
-MessageRootLocation = Path(r"\\LAPTOP-DHA3J8F0\SharedData\Messaging")
-
 class MessageBrokerError(Exception): pass
-class PartitionCorruptError(MessageBrokerError): pass
-class TopicNotFoundError(MessageBrokerError): pass
+class TopicCorruptError(MessageBrokerError): pass
 class ConfigNotFoundError(FileNotFoundError, MessageBrokerError): pass
-class TopicAlreadyCreated(MessageBrokerError): pass
-class InvalidTopicCodeSpecification(MessageBrokerError): pass
-class InvalidTopicBytesError(MessageBrokerError): pass
+class TopicAlreadyExists(MessageBrokerError): pass
 class NoActiveMessageFileToReadError(MessageBrokerError): pass
 
-MessageTuple = namedtuple("MessageTuple", ["Offset", "Topic", "Timestamp", "Message"])
+MessageTuple = namedtuple("MessageTuple", ["Offset", "Key", "Timestamp", "Message"])
 
-class MessageBrokerBase(ABC):
-    def __init__(self, partition):
-        self.partition = partition
-        configPath = _getConfigPath(partition)
+class TwainMQBase(ABC):
+    def __init__(self, twain_directory, topic):
+        self.topic = topic
+        self.twain_directory = Path(twain_directory)
+        config_path = _getConfigPath(partition)
         if not configPath.is_file():
-            raise ConfigNotFoundError(f"No config for {partition}: cannot find file {configPath}")
-        with configPath.open("r") as configFile:
-            configData = configFile.read().splitlines()
-        if configData[0] not in ["1", "2", "3", "4"]:
-            raise InvalidTopicCodeSpecification(f"Do not understand topic config code: {configData[0]}") 
-        self._topicBytes = int(configData[0])
-        self._topicNames = configData[1:]
-        self._topicCodes = generateTopicCodes(self._topicBytes, len(self._topicNames))
-        self._topic2code = dict(zip(self._topicNames, self._topicCodes))
-        self._code2topic = dict(zip(self._topicCodes, self._topicNames))
-        self._brokerCode = self._topicCodes[0]
-        self._messageFile, self._todayStr = self._getActiveMessageFile()
-        self._currentOffset = None
-        self._currentFileHandle = None
+            raise ConfigNotFoundError(f"No config for {topic}: cannot find file {config_path}")
+        self._message_file, self._todayStr = self._get_active_message_file()
+        self._current_offset = None
+        self._current_file_handle = None
         
     def __enter__(self):
         return self
@@ -49,76 +34,57 @@ class MessageBrokerBase(ABC):
         self.close()
 
     @property
-    def _messageFilesByOffset(self):
-        partitionDir = MessageRootLocation / self.partition
-        messageFilesByOffset = [(int(x.stem.split("_")[1]), x) for x in partitionDir.iterdir()]
-        return messageFilesByOffset
+    def _message_files_by_offset(self):
+        topic_dir = self.twain_directory / self.topic
+        message_files_by_offset = [(int(x.stem.split("_")[1]), x) for x in topic_dir.iterdir()]
+        return message_files_by_offset
     
-    def _getActiveMessageFile(self):
-        partitionDir = MessageRootLocation / self.partition
-        todayStr = f"{datetime.utcnow():%Y%m%d}"
-        messageFiles = [x for x in partitionDir.iterdir()]
-        activeFile = [x for x in messageFiles if x.stem[:8] == todayStr]
-        if len(activeFile) == 0:
-            if len(messageFiles) == 0:
-                fileOffset = 0
+    def _get_active_message_file(self):
+        topic_dir = self.twain_directory / self.topic
+        chunk_str = f"{datetime.utcnow():%Y%m%d}"   ## Daily chunks for now
+        message_files = list(topic_dir.iterdir())
+        active_file = [x for x in message_files if x.stem[:8] == chunk_str]
+        if len(active_file) == 0:
+            if len(message_files) == 0:
+                file_offset = 0
             else:
-                prevFile = max(messageFiles)
-                with Path(prevFile).open("r") as f:
-                    prevFileLen = len(f.readlines())
-                prevFileOffset = int(prevFile.stem.split("_")[1])
-                fileOffset = prevFileOffset + prevFileLen
-            newActiveFile = partitionDir / f"{todayStr}_{fileOffset}.mbm"
-            self._initNewMessageFile(newActiveFile, fileOffset)
-            return newActiveFile, todayStr
-        elif len(activeFile) == 1:
-            activeFile = Path(activeFile[0])
-            return activeFile, todayStr
+                prev_file = max(message_files)
+                with Path(prev_file).open("r") as f:
+                    prev_file_len = len(f.readlines())
+                prev_file_offset = int(prev_file.stem.split("_")[1])
+                file_offset = prev_file_offset + prev_file_len
+            new_active_file = topic_dir / f"{chunk_str}_{file_offset}.tmf"
+            self._init_new_message_file(new_active_file, file_offset)
+            return new_active_file, chunk_str
+        elif len(active_file) == 1:
+            active_file = Path(active_file[0])
+            return active_file, chunk_str
         else:
-            raise PartitionCorruptError(f"Multiple message files for the same day {todayStr}")
+            raise TopicCorruptError(f"Multiple message files for the same chunk {chunk_str}")
     
-    def __repr__(self):
-        if len(self._topicNames) > 5:
-            TopicRepr = f"...{len(self._topicNames) - 1}..."
-        else:
-            TopicRepr = ", ".join(self._topicNames)
-        return f"{self.__class__.__name__}(partition={self.partition}, topics  = [{TopicRepr}])@offset={self.offset}"
+    def __str__(self):
+        return f"{self.__class__.__name__}(topic={self.topic}@offset={self.offset}"
         
-    def _initNewMessageFile(self, activeFile, offset):
-        tcode = self._brokerCode
-        msgBlob = encodeMessage(f"Offset={offset}")
-        timestamp = encodeDateTime(datetime.utcnow())
-        activeFile.write_text(f"{tcode}{timestamp}{msgBlob}\n")
+    def _init_new_message_file(self, active_file, offset):
+        pass
     
     @property
-    def _activeFile(self):
-        todayStr = f"{datetime.utcnow():%Y%m%d}"
-        if todayStr != self._todayStr:
-            self._messageFile, self._todayStr = self._getActiveMessageFile()
-        return self._messageFile
+    def _active_file(self):
+        chunk_str = f"{datetime.utcnow():%Y%m%d}"
+        if chunk_str != self._chunk_str:
+            self._message_file, self._chunk_str = self._get_active_message_file()
+        return self._message_file
     
     @property
     def offset(self):
-        return self._currentOffset
-        
-    @property
-    def topics(self):
-        return list(self._topicNames)
-        
-    def getTopicCode(self, topic):
-        try:
-            return self._topic2code[topic]
-        except KeyError as e:
-            raise TopicNotFoundError(f"Topic '{topic}' does not exist in partition '{self.partition}'") from e  
-    def getTopic(self, topicCode):
-        return self._code2topic.get(topicCode, "UNKNOWN TOPIC")
-        
+        return self._current_offset
+
     def close(self):
-        if self._currentFileHandle is not None:
-            self._currentFileHandle.close()
-        self._currentFileHandle = None
+        if self._current_file_handle is not None:
+            self._current_file_handle.close()
+        self._current_file_handle = None
         
-class MessageBrokerReader(MessageBrokerBase):
+class TwainMQConsumer(MessageBrokerBase):
     def __init__(self, partition, topicFilter = None, offset = None):
         super().__init__(partition)
         if topicFilter is None:
@@ -190,12 +156,12 @@ class MessageBrokerReader(MessageBrokerBase):
                 self.nextFileStart = None
         return messages
 
-class MessageBrokerWriter(MessageBrokerBase):
-    def __init__(self, partition):
-        super().__init__(partition)
+class TwainMQProducer(MessageBrokerBase):
+    def __init__(self, topic):
+        super().__init__(topic)
     
-    def writeMessage(self, topic, message):
-        tcode = self.getTopicCode(topic)
+    def writeMessage(self, key, message):
+        encoded_key = int_to_base85(key)
         msgBlob = encodeMessage(message)
         timestamp = encodeDateTime(datetime.utcnow())
         with self._activeFile.open("a") as f:
@@ -204,53 +170,22 @@ class MessageBrokerWriter(MessageBrokerBase):
 def _getConfigPath(partitionName):
     return (MessageRootLocation / partitionName).with_suffix(".mbc")
 
-def listPartitions():
+def listTopic():
     return [f.stem for f in MessageRootLocation.glob("*.mbc")]
 
-def createPartition(partitionName, topics = None, topicBytes = 2):
-    """Create a new partition"""
-    if topics is None:
-        topics = []
-    if topicBytes not in [1,2,3,4]:
-        raise InvalidTopicBytesError("Only 1 to 4 bytes supported")
-    if not isinstance(topics, list):
-        raise TypeError("Must supply list of topic names or None")
-    if len(topics) + 1 > len(topicChars) ** topicBytes:
-        raise ValueError(f"Cannot create partition, number of topics ({len(topics)}) exceed topic encoding ({len(topicChars) ** topicBytes})")
-    if (MessageRootLocation / partitionName).exists():
-        raise ValueError(f"Cannot create partition, {partitionName} already exists")
-    newPartDir = (MessageRootLocation / partitionName).mkdir()
-    configPath = _getConfigPath(partitionName)
+def createTopic(topicName, keyBytes = 2):
+    """Create a new topic"""
+    if keyBytes > 8:
+        raise InvalidTopicBytesError("Key must be 8 bytes or fewer")
+    if (MessageRootLocation / topicName).exists():
+        raise ValueError(f"Cannot create topic, {topicName} already exists")
+    newPartDir = (MessageRootLocation / topicName).mkdir()
+    configPath = _getConfigPath(topicName)
     with configPath.open("w") as newConfig:
-        newConfig.write(f"{topicBytes}\n")
-    addTopics(partitionName, ["RESERVED"] + topics)
+        newConfig.write(f"{keyBytes}\n")
     
-def addTopics(partitionName, topics):
-    """Add topics"""
-    if not isinstance(topics, list):
-        raise TypeError("Must supply list of topic names")
-    
-    configPath = _getConfigPath(partitionName)
-    if not configPath.is_file():
-        raise ConfigNotFoundError(f"No config for {partitionName}: cannot find file {configPath}")
-    
-    # Check that topics are not already in config
-    #
-    #
-    #
-    #
-    #
-    #
-    #
-    
-    
-    with configPath.open("a") as f:
-        for thisTopic in topics:
-        
-        
-            f.write(thisTopic + "\n")
-
 _bytesFlag = b"\x99"   # sentinal added as first byte of message to indicate message is raw bytes (will not encode into utf-8)
+## Anything in the range \x80 to \xBF ought to be safe to use as sentinal bytes
 
 def encodeDateTime(dt):
     """Return 10 byte encoded date string"""
@@ -258,8 +193,6 @@ def encodeDateTime(dt):
     
 def decodeDateTime(dt):
     return datetime.fromtimestamp(np.frombuffer(base64.b85decode(dt.encode("utf-8")))[0])
-
-import base64
 
 def encodeMessage(message):
     if isinstance(message, bytes):
@@ -277,17 +210,6 @@ def decodeMessage(message):
         return decoded[1:]
     else:
         return decoded.decode("utf-8")
-    
-def generateTopicCodes(topicBytes, nTopics):
-    topicList = []
-    n = len(topicChars)
-    for x in range(nTopics):
-        topicCode = ""
-        for i in range(topicBytes):
-            topicCode += topicChars[x % n]
-            x = x // n
-        topicList.append(topicCode)
-    return topicList
 
 def int_to_base85(n: int, width: int) -> str:
     """
