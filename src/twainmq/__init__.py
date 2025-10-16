@@ -11,4 +11,11 @@ Messages can be either plan UTF-8 or raw bytes.
 Messages are organised by key, partition and topic.
 
 Keys
+
+u8 => 94**2
+u16 => 94**3
+u32 => 94**5
+
 """
+
+from .twain_core import Twain, TwainMQConsumer, TwainMQProducer

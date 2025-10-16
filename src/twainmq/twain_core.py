@@ -8,23 +8,141 @@ import numpy as np
 import os
 from collections import namedtuple
 import unittest
+import random
+import shutil
+import logging
+import json
+logger = logging.getLogger(__name__)
 
-class MessageBrokerError(Exception): pass
-class TopicCorruptError(MessageBrokerError): pass
-class ConfigNotFoundError(FileNotFoundError, MessageBrokerError): pass
-class TopicAlreadyExists(MessageBrokerError): pass
-class NoActiveMessageFileToReadError(MessageBrokerError): pass
+class TwainMQError(Exception): pass
+class TopicCorruptError(TwainMQError): pass
+class ConfigNotFoundError(FileNotFoundError, TwainMQError): pass
+class TopicAlreadyExists(TwainMQError): pass
+class NoActiveMessageFileToReadError(TwainMQError): pass
+class InvalidKeyTypeError(TwainMQError): pass
+class TopicDeleteError(TwainMQError): pass
 
-MessageTuple = namedtuple("MessageTuple", ["Offset", "Key", "Timestamp", "Message"])
+MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
+
+class Twain:
+    """
+    The central entry point for interacting with a TwainMQ installation.
+
+    A `Twain` instance represents a single TwainMQ environment rooted at a
+    directory on disk. This directory holds all topics, configuration files,
+    and global state. Typically, you create one `Twain` object per process
+    and reuse it to manage topics, producers, and consumers.
+
+    Parameters
+    ----------
+    root_dir : str or Path
+        Filesystem path to the TwainMQ root directory. This directory will
+        contain topic data, configuration, and metadata.
+
+    Notes
+    -----
+    - The `Twain` object is designed to be long-lived. Create it once and
+      share it across your application rather than instantiating multiple
+      times.
+    - Global configuration parameters (e.g. encoding defaults, safety
+      thresholds) can be set at the `Twain` level and will apply to all
+      producers and consumers created from it.
+
+    Examples
+    --------
+    Create a Twain instance pointing at a local directory:
+
+    >>> tmq = Twain("C:/TwainMQ")
+
+    Create a new topic with 16-bit unsigned integer keys:
+
+    >>> tmq.create_topic("hello_world", "u16")
+
+    Create a producer for that topic and write a message:
+
+    >>> producer = tmq.producer("hello_world")
+    >>> producer.write_message(42)
+
+    Create a consumer to read messages:
+
+    >>> consumer = tmq.consumer("hello_world")
+    >>> msg = consumer.read_message()
+    """
+    def __init__(self, root_dir):
+        self._root_dir = Path(root_dir)
+        
+    def create_topic(self, topic_name, key_type = None):
+        """Create a new topic
+        
+        Args:
+            twain_directory: The root directory for twain MQs
+            topic_name: The name of the topic
+            key_type:  The width of the integer key ("u8", "u16", "u32", "u64", "var"), default "u16"
+        """
+        
+        key_types = dict(
+        u8 = 1,
+        u16 = 2,
+        u32 = 4,
+        u64 = 8,
+        str = 0,
+        )
+        
+        if key_type is None:
+            key_type = "u16"
+        
+        try:
+            key_width = key_types[key_type]
+        except KeyError:
+            raise InvalidKeyTypeError(f"{key_type} is not a valid key_type. Options are {', '.join(key_types.keys())}")
+           
+        topic_path = self._topic_path(topic_name)
+        if topic_path.exists():
+            raise ValueError(f"Cannot create topic, {topic_name} already exists")
+        new_topic_dir = topic_path.mkdir()
+        config_path = self._config_path(topic_name)
+        
+        config = dict(key_width = key_width)
+        with config_path.open("w", encoding="utf-8") as f:
+            json.dump(config, f, indent = 0)
+
+    def delete_topic(self, topic_name):
+        challenge_digit = random.randint(0, 9)
+        confirm = input(f"To confirm delete of topic {topic_name} in {self.root_dir}, type YES{challenge_digit}")
+        if confirm == f"YES{challenge_digit}":
+            shutil.rmtree(self._topic_path(topic_name))
+            logger.info(f"Topic deleted: {topic_name}")
+        else:
+            return TopicDeleteError("User confirm failed, topic not deleted")
+
+    def producer(self, topic_name):
+        return TwainMQProducer(self, topic_name)
+
+    def consumer(self, topic_name):
+        return TwainMQConsumer(self, topic_name)
+
+    def _topic_path(self, topic_name):
+        return self.root_dir / topic_name
+
+    def _config_path(self, topic_name):
+        return self.root_dir / f"{topic_name}.twc"
+
+    @property
+    def root_dir(self):
+        return self._root_dir
 
 class TwainMQBase(ABC):
-    def __init__(self, twain_directory, topic):
+    def __init__(self, twain, topic):
         self.topic = topic
-        self.twain_directory = Path(twain_directory)
-        config_path = _getConfigPath(partition)
-        if not configPath.is_file():
+        self._twain = twain
+        config_path = self._twain._config_path(topic)
+        if not config_path.is_file():
             raise ConfigNotFoundError(f"No config for {topic}: cannot find file {config_path}")
-        self._message_file, self._todayStr = self._get_active_message_file()
+        with config_path.open("r") as f:
+            config = json.load(f)
+        self._key_width = config["key_width"]
+        self._key_chars = ENCODED_WIDTHS[self._key_width]
+        self._message_file, self._chunk_str = self._get_active_message_file()
         self._current_offset = None
         self._current_file_handle = None
         
@@ -35,12 +153,12 @@ class TwainMQBase(ABC):
 
     @property
     def _message_files_by_offset(self):
-        topic_dir = self.twain_directory / self.topic
+        topic_dir = self._twain.root_dir / self.topic
         message_files_by_offset = [(int(x.stem.split("_")[1]), x) for x in topic_dir.iterdir()]
         return message_files_by_offset
     
     def _get_active_message_file(self):
-        topic_dir = self.twain_directory / self.topic
+        topic_dir = self._twain.root_dir / self.topic
         chunk_str = f"{datetime.utcnow():%Y%m%d}"   ## Daily chunks for now
         message_files = list(topic_dir.iterdir())
         active_file = [x for x in message_files if x.stem[:8] == chunk_str]
@@ -76,6 +194,12 @@ class TwainMQBase(ABC):
         return self._message_file
     
     @property
+    def key_width(self):
+        """The width of the key in bytes.  0 indicates a string key.
+        """
+        return self._key_width
+
+    @property
     def offset(self):
         return self._current_offset
 
@@ -84,129 +208,106 @@ class TwainMQBase(ABC):
             self._current_file_handle.close()
         self._current_file_handle = None
         
-class TwainMQConsumer(MessageBrokerBase):
-    def __init__(self, partition, topicFilter = None, offset = None):
-        super().__init__(partition)
-        if topicFilter is None:
-            self._topicFilterCodes = self._topicCodes[1:]
-        elif topicFilter == "RESERVED":
-            self._topicFilterCodes = set([self._brokerCode])
-        else:
-            self._topicFilterCodes = set(self.getTopicCode(t) for t in topicFilter)
+class TwainMQConsumer(TwainMQBase):
+    def __init__(self, twain, topic, offset = None):
+        super().__init__(twain, topic)
             
         if offset is None:
-            self._currentOffset = int(self._activeFile.stem.split("_")[1])
-            self._setCurrentFileHandle()
-            self.nextFileStart = None
+            self._current_offset = int(self._active_file.stem.split("_")[1])
+            self._set_current_file_handle()
+            self.next_file_start = None
         elif offset == -1:   # Last offset - in future special case of specific offsets back (which need seek)
-            self._currentOffset = int(self._activeFile.stem.split("_")[1])
-            self._setCurrentFileHandle()
-            self.nextFileStart = None
-            self.readAllMessages()
+            self.current_offset = int(self._active_file.stem.split("_")[1])
+            self._set_current_file_handle()
+            self.next_file_start = None
+            self.read_all_messages()
         elif offset < -1:
             raise NotImplementedError("Cannot do specific offsets back from end yet")
         else:
-            self.nextFileStart = None
-            for o, f in self._messageFilesByOffset:
+            self.next_file_start = None
+            for o, f in self._message_files_by_offset:
                 if o > offset:
-                    self.nextFileStart = o
+                    self.next_file_start = o
                     break
                 else:
-                    readingFilePath = f
-            self._currentFileHandle = readingFilePath.open("r")
-            self._currentOffset = int(readingFilePath.stem.split("_")[1])
+                    reading_file_path = f
+            self._current_file_handle = reading_file_path.open("r")
+            self._current_offset = int(reading_file_path.stem.split("_")[1])
 
-    def _setCurrentFileHandle(self):
-        if self._activeFile.exists():
-            self._currentFileHandle = self._activeFile.open("r")
+    def _set_current_file_handle(self):
+        if self._active_file.exists():
+            self._current_file_handle = self._active_file.open("r")
         else:
-            raise NoActiveMessageFileToReadError(f"Expected broker file {self._activeFile} does not exist yet")
+            raise NoActiveMessageFileToReadError(f"Expected broker file {self._active_file} does not exist yet")
 
-    def _initNewMessageFile(self, activeFile, offset):
+    def _initNewMessageFile(self, active_file, offset):
         print("Not initialising - read only")
         pass
-            
-    def readAllMessages(self):
-        todayStr = f"{datetime.utcnow():%Y%m%d}"
-        newLines = self._currentFileHandle.read().splitlines()
-        offsetsRead = len(newLines)
-        filteredLines = [(i, L) for i, L in enumerate(newLines) if L[:self._topicBytes] in self._topicFilterCodes]
-        messages = [MessageTuple(Offset = self._currentOffset + i,
-                                 Topic = self.getTopic(fl[:self._topicBytes]),
-                                 Timestamp = decodeDateTime(fl[self._topicBytes:10+self._topicBytes]),
-                                 Message = decodeMessage(fl[10+self._topicBytes:])
+
+    def read_all_messages(self):
+        chunk_str = f"{datetime.utcnow():%Y%m%d}"
+        new_lines = self._current_file_handle.read().splitlines()
+        offsets_read = len(new_lines)
+        messages = [MessageTuple(offset = self._current_offset + i,
+                                 key = base85_to_int(line[:self._key_chars], self.key_width),
+                                 timestamp = decode_datetime(line[self._key_chars:10+self._key_chars]),
+                                 message = decode_message(line[10+self._key_chars:])
                                  )
-                    for i, fl in filteredLines]
-        self._currentOffset += offsetsRead
-        if self._currentOffset == self.nextFileStart:
-            self._currentFileHandle.close()
-            readingFilePath = dict(self._messageFilesByOffset)[self.nextFileStart]
-            self._currentFileHandle = readingFilePath.open("r")
-            self.nextFileStart = None
-            for o, f in self._messageFilesByOffset:
-                if o > self._currentOffset:
-                    self.nextFileStart = o
+                    for i, line in enumerate(new_lines)]
+        self._current_offset += offsets_read
+        if self._current_offset == self.next_file_start:
+            self._current_file_handle.close()
+            reading_file_path = dict(self._message_files_by_offset)[self.next_file_start]
+            self._current_file_handle = reading_file_path.open("r")
+            self.next_file_start = None
+            for o, f in self._message_files_by_offset:
+                if o > self._current_offset:
+                    self.next_file_start = o
                     break
-            messages += self.readAllMessages()
-        if self.nextFileStart is None:
-            if todayStr > self._todayStr:
-                self._currentFileHandle.close()
-                self._currentOffset = int(self._activeFile.stem.split("_")[1])
-                self._currentFileHandle = self._activeFile.open("r")
-                self.nextFileStart = None
+            messages += self.read_all_messages()
+        if self.next_file_start is None:
+            if chunk_str > self._chunk_str:
+                self._current_file_handle.close()
+                self._current_offset = int(self._active_file.stem.split("_")[1])
+                self._current_file_handle = self._active_file.open("r")
+                self.next_file_start = None
         return messages
 
-class TwainMQProducer(MessageBrokerBase):
-    def __init__(self, topic):
-        super().__init__(topic)
+class TwainMQProducer(TwainMQBase):
+    def __init__(self, twain, topic):
+        super().__init__(twain, topic)
     
-    def writeMessage(self, key, message):
-        encoded_key = int_to_base85(key)
-        msgBlob = encodeMessage(message)
-        timestamp = encodeDateTime(datetime.utcnow())
-        with self._activeFile.open("a") as f:
-            f.write(f"{tcode}{timestamp}{msgBlob}\n")
+    def write_message(self, key, message):
+        encoded_key = int_to_base85(key, self.key_width)
+        timestamp = encode_datetime(datetime.utcnow())
+        msg_blob = encode_message(message)
+        with self._active_file.open("a") as f:
+            f.write(f"{encoded_key}{timestamp}{msg_blob}\n")
 
-def _getConfigPath(partitionName):
-    return (MessageRootLocation / partitionName).with_suffix(".mbc")
-
-def listTopic():
-    return [f.stem for f in MessageRootLocation.glob("*.mbc")]
-
-def createTopic(topicName, keyBytes = 2):
-    """Create a new topic"""
-    if keyBytes > 8:
-        raise InvalidTopicBytesError("Key must be 8 bytes or fewer")
-    if (MessageRootLocation / topicName).exists():
-        raise ValueError(f"Cannot create topic, {topicName} already exists")
-    newPartDir = (MessageRootLocation / topicName).mkdir()
-    configPath = _getConfigPath(topicName)
-    with configPath.open("w") as newConfig:
-        newConfig.write(f"{keyBytes}\n")
-    
-_bytesFlag = b"\x99"   # sentinal added as first byte of message to indicate message is raw bytes (will not encode into utf-8)
+_RAW_MESSAGE = b"\x98" # unused so far
+_GZIP_BYTES = b"\x99"
 ## Anything in the range \x80 to \xBF ought to be safe to use as sentinal bytes
 
-def encodeDateTime(dt):
+def encode_datetime(dt):
     """Return 10 byte encoded date string"""
     return base64.b85encode(np.array(dt.timestamp()).tobytes()).decode("utf-8")
     
-def decodeDateTime(dt):
+def decode_datetime(dt):
     return datetime.fromtimestamp(np.frombuffer(base64.b85decode(dt.encode("utf-8")))[0])
 
-def encodeMessage(message):
+def encode_message(message):
     if isinstance(message, bytes):
-        payload = _bytesFlag + message
+        payload = _GZIP_BYTES + message
     else:
         payload = message.encode("utf-8")
     # Need to test to optimise the compression rate
     compressed = zlib.compress(payload, level=6, wbits=-15)
     return base64.b85encode(compressed).decode("utf-8")
 
-def decodeMessage(message):
+def decode_message(message):
     compressed = base64.b85decode(message.encode("utf-8"))
     decoded = zlib.decompress(compressed, wbits=-15)
-    if decoded.startswith(_bytesFlag):
+    if decoded.startswith(_GZIP_BYTES):
         return decoded[1:]
     else:
         return decoded.decode("utf-8")
@@ -225,6 +326,8 @@ def int_to_base85(n: int, width: int) -> str:
     b = n.to_bytes(width, byteorder="big", signed=False)
     encoded = base64.b85encode(b)
     return encoded.decode("ascii")
+
+ENCODED_WIDTHS = {i: len(int_to_base85(1, width = i)) for i in range(1, 8)}
 
 def base85_to_int(s: str, width: int) -> int:
     """
