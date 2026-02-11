@@ -71,13 +71,14 @@ class Twain:
     def __init__(self, root_dir):
         self._root_dir = Path(root_dir)
         
-    def create_topic(self, topic_name, key_type = None):
+    def create_topic(self, topic_name, key_type = None, partitions = 1):
         """Create a new topic
         
         Args:
             twain_directory: The root directory for twain MQs
             topic_name: The name of the topic
-            key_type:  The width of the integer key ("u8", "u16", "u32", "u64", "var"), default "u16"
+            partitions: The number of partitions to split it into, default = 1
+            key_type:  The key type ("u8", "u16", "u32", "u64", "str"), default  = "u16"
         """
         
         key_types = dict(
@@ -91,6 +92,9 @@ class Twain:
         if key_type is None:
             key_type = "u16"
         
+        if key_type == "str":
+            raise NotImplementedError("Support for string keys is not implemented yet")
+        
         try:
             key_width = key_types[key_type]
         except KeyError:
@@ -102,7 +106,7 @@ class Twain:
         new_topic_dir = topic_path.mkdir()
         config_path = self._config_path(topic_name)
         
-        config = dict(key_width = key_width)
+        config = dict(key_width = key_width, partitions = partitions)
         with config_path.open("w", encoding="utf-8") as f:
             json.dump(config, f, indent = 0)
 
@@ -118,8 +122,8 @@ class Twain:
     def producer(self, topic_name):
         return TwainMQProducer(self, topic_name)
 
-    def consumer(self, topic_name):
-        return TwainMQConsumer(self, topic_name)
+    def consumer(self, topic_name, group = None):
+        return TwainMQConsumer(self, topic_name, group)
 
     def _topic_path(self, topic_name):
         return self.root_dir / topic_name
@@ -141,57 +145,22 @@ class TwainMQBase(ABC):
         with config_path.open("r") as f:
             config = json.load(f)
         self._key_width = config["key_width"]
+        self._partitions = int(config["partitions"])
         self._key_chars = ENCODED_WIDTHS[self._key_width]
-        self._message_file, self._chunk_str = self._get_active_message_file()
-        self._current_offset = None
-        self._current_file_handle = None
         
     def __enter__(self):
         return self
     def __exit__(self, type, value, traceback):
         self.close()
 
-    @property
-    def _message_files_by_offset(self):
-        topic_dir = self._twain.root_dir / self.topic
-        message_files_by_offset = [(int(x.stem.split("_")[1]), x) for x in topic_dir.iterdir()]
-        return message_files_by_offset
-    
-    def _get_active_message_file(self):
-        topic_dir = self._twain.root_dir / self.topic
-        chunk_str = f"{datetime.utcnow():%Y%m%d}"   ## Daily chunks for now
-        message_files = list(topic_dir.iterdir())
-        active_file = [x for x in message_files if x.stem[:8] == chunk_str]
-        if len(active_file) == 0:
-            if len(message_files) == 0:
-                file_offset = 0
-            else:
-                prev_file = max(message_files)
-                with Path(prev_file).open("r") as f:
-                    prev_file_len = len(f.readlines())
-                prev_file_offset = int(prev_file.stem.split("_")[1])
-                file_offset = prev_file_offset + prev_file_len
-            new_active_file = topic_dir / f"{chunk_str}_{file_offset}.tmf"
-            self._init_new_message_file(new_active_file, file_offset)
-            return new_active_file, chunk_str
-        elif len(active_file) == 1:
-            active_file = Path(active_file[0])
-            return active_file, chunk_str
-        else:
-            raise TopicCorruptError(f"Multiple message files for the same chunk {chunk_str}")
+    # @property
+    # def _message_files_by_offset(self):
+        # topic_dir = self._twain.root_dir / self.topic
+        # message_files_by_offset = [(int(x.stem.split("_")[1]), x) for x in topic_dir.iterdir()]
+        # return message_files_by_offset
     
     def __str__(self):
-        return f"{self.__class__.__name__}(topic={self.topic}@offset={self.offset}"
-        
-    def _init_new_message_file(self, active_file, offset):
-        pass
-    
-    @property
-    def _active_file(self):
-        chunk_str = f"{datetime.utcnow():%Y%m%d}"
-        if chunk_str != self._chunk_str:
-            self._message_file, self._chunk_str = self._get_active_message_file()
-        return self._message_file
+        return f"{self.__class__.__name__}(topic={self.topic}"
     
     @property
     def key_width(self):
@@ -199,90 +168,251 @@ class TwainMQBase(ABC):
         """
         return self._key_width
 
-    @property
-    def offset(self):
-        return self._current_offset
+    # @property
+    # def offset(self):
+        # return self._current_offset
 
-    def close(self):
-        if self._current_file_handle is not None:
-            self._current_file_handle.close()
+    # def close(self):
+        # if self._current_file_handle is not None:
+            # self._current_file_handle.close()
+        # self._current_file_handle = None
+
+class TwainMQConsumer():
+    """A consumer"""
+    def __init__(self, twain, topic, group = None):
+        self._twain = twain
+        self._topic = topic
+        self._group = group
+
+class TwainMQConsumerlet(TwainMQBase):
+    """A consumerlet is a simple single partition consumer.  Usually you would not use a Consumerlet directly, rather use the Consumer container"""
+    def __init__(self, twain, partition, offset=None):
+        super().__init__(twain, partition)
+
         self._current_file_handle = None
-        
-class TwainMQConsumer(TwainMQBase):
-    def __init__(self, twain, topic, offset = None):
-        super().__init__(twain, topic)
-            
+
         if offset is None:
             self._current_offset = int(self._active_file.stem.split("_")[1])
-            self._set_current_file_handle()
-            self.next_file_start = None
-        elif offset == -1:   # Last offset - in future special case of specific offsets back (which need seek)
-            self.current_offset = int(self._active_file.stem.split("_")[1])
-            self._set_current_file_handle()
-            self.next_file_start = None
+            self._set_starting_file_from_offset(self._current_offset)
+        elif offset == -1:
+            self._current_offset = int(self._active_file.stem.split("_")[1])
+            self._set_starting_file_from_offset(self._current_offset)
             self.read_all_messages()
         elif offset < -1:
             raise NotImplementedError("Cannot do specific offsets back from end yet")
         else:
-            self.next_file_start = None
-            for o, f in self._message_files_by_offset:
-                if o > offset:
-                    self.next_file_start = o
-                    break
-                else:
-                    reading_file_path = f
-            self._current_file_handle = reading_file_path.open("r")
-            self._current_offset = int(reading_file_path.stem.split("_")[1])
+            self._set_starting_file_from_offset(offset)
+            self._current_offset = offset
+
+        self.next_file_start = None
+        for o, f in self._message_files_by_offset:
+            if o > self._current_offset:
+                self.next_file_start = o
+                break
+
+    def _set_starting_file_from_offset(self, offset):
+        """
+        Decide which file we should be reading given a logical offset.
+        This preserves your original logic for explicit offsets.
+        """
+        reading_file_path = None
+        for o, f in self._message_files_by_offset:
+            if o > offset:
+                # we've gone past the desired offset; last file we saw is correct
+                break
+            reading_file_path = f
+
+        if reading_file_path is None:
+            # no historical file; fall back to active file
+            reading_file_path = self._active_file
+
+        self._reading_file_path = reading_file_path
+        self._current_file_handle = None  # lazy-open
+
+    def _ensure_handle(self):
+        """
+        Make sure we have an open handle for the current reading file.
+        Returns True if handle is ready, False if file does not exist yet.
+        """
+        if self._current_file_handle is not None:
+            return True
+
+        if self._reading_file_path.exists():
+            self._current_file_handle = self._reading_file_path.open("r")
+            return True
+
+        return False
+
+    def _rollover_to_next_file_if_needed(self):
+        """
+        Handle rollover to the next chunk file based on next_file_start.
+        Returns True if we rolled over, False otherwise.
+        """
+        if self.next_file_start is None:
+            return False
+
+        if self._current_offset < self.next_file_start:
+            return False
+
+        # close current and move to next
+        if self._current_file_handle is not None:
+            self._current_file_handle.close()
+            self._current_file_handle = None
+
+        reading_file_path = dict(self._message_files_by_offset)[self.next_file_start]
+        self._reading_file_path = reading_file_path
+        self._current_offset = self.next_file_start
+
+        # recompute next_file_start
+        self.next_file_start = None
+        for o, f in self._message_files_by_offset:
+            if o > self._current_offset:
+                self.next_file_start = o
+                break
+
+        return True
+
+    def _rollover_to_new_day_if_needed(self):
+        """
+        Handle date-based rollover: when the UTC date changes and there is a new active file.
+        Mirrors your original chunk_str logic.
+        """
+        chunk_str_now = f"{datetime.utcnow():%Y%m%d}"
+        if self.next_file_start is not None:
+            return  # we already know about a next file by offset; let that logic win
+
+        if chunk_str_now > self._chunk_str:
+            # we've moved to a new day; switch to the new active file
+            if self._current_file_handle is not None:
+                self._current_file_handle.close()
+                self._current_file_handle = None
+
+            self._reading_file_path = self._active_file
+            self._current_offset = int(self._active_file.stem.split("_")[1])
+            self._chunk_str = chunk_str_now  # keep internal date in sync
+
+    def _decode_line(self, offset, line):
+        key = base85_to_int(line[:self._key_chars], self.key_width)
+        timestamp = decode_datetime(line[self._key_chars:10 + self._key_chars])
+        message = decode_message(line[10 + self._key_chars:])
+        return MessageTuple(
+            offset=offset,
+            key=key,
+            timestamp=timestamp,
+            message=message,
+        )
+        
+    def poll(self):
+        """
+        Return the next MessageTuple, or None if no message is currently available.
+        """
+        if not self._ensure_handle():
+            return None
+
+        line = self._current_file_handle.readline()
+        if not line:
+            if self._rollover_to_next_file_if_needed():
+                return self.poll()
+
+            self._rollover_to_new_day_if_needed()
+
+            # after rollover attempts, try again once
+            if self._rollover_to_next_file_if_needed() and self._ensure_handle():
+                line = self._current_file_handle.readline()
+                if not line:
+                    return None
+            else:
+                return None
+
+        # decode and advance offset
+        msg = self._decode_line(self._current_offset, line.rstrip("\n"))
+        self._current_offset += 1
+        return msg
+
+    def read_all_messages(self):
+        """
+        Drain all currently available messages starting from the consumer's current position.
+        """
+        messages = []
+        while True:
+            msg = self.poll()
+            if msg is None:
+                break
+            messages.append(msg)
+        return messages
+
+    # --- legacy hook kept for compatibility ------------------------------------
 
     def _set_current_file_handle(self):
-        if self._active_file.exists():
-            self._current_file_handle = self._active_file.open("r")
-        else:
-            raise NoActiveMessageFileToReadError(f"Expected broker file {self._active_file} does not exist yet")
+        """
+        Kept for compatibility with existing code paths that might call this.
+        Now just delegates to the new lazy-open logic.
+        """
+        if not self._ensure_handle():
+            raise NoActiveMessageFileToReadError(
+                f"Expected broker file {self._reading_file_path} does not exist yet"
+            )
 
     def _initNewMessageFile(self, active_file, offset):
         print("Not initialising - read only")
         pass
 
-    def read_all_messages(self):
-        chunk_str = f"{datetime.utcnow():%Y%m%d}"
-        new_lines = self._current_file_handle.read().splitlines()
-        offsets_read = len(new_lines)
-        messages = [MessageTuple(offset = self._current_offset + i,
-                                 key = base85_to_int(line[:self._key_chars], self.key_width),
-                                 timestamp = decode_datetime(line[self._key_chars:10+self._key_chars]),
-                                 message = decode_message(line[10+self._key_chars:])
-                                 )
-                    for i, line in enumerate(new_lines)]
-        self._current_offset += offsets_read
-        if self._current_offset == self.next_file_start:
-            self._current_file_handle.close()
-            reading_file_path = dict(self._message_files_by_offset)[self.next_file_start]
-            self._current_file_handle = reading_file_path.open("r")
-            self.next_file_start = None
-            for o, f in self._message_files_by_offset:
-                if o > self._current_offset:
-                    self.next_file_start = o
-                    break
-            messages += self.read_all_messages()
-        if self.next_file_start is None:
-            if chunk_str > self._chunk_str:
-                self._current_file_handle.close()
-                self._current_offset = int(self._active_file.stem.split("_")[1])
-                self._current_file_handle = self._active_file.open("r")
-                self.next_file_start = None
-        return messages
-
 class TwainMQProducer(TwainMQBase):
-    def __init__(self, twain, topic):
+    def __init__(self, twain, topic, partitioner = None):
         super().__init__(twain, topic)
+        if partitioner is None:
+            partitioner = partition_hash64
+        self._partitioner = partitioner
+        self._active_files = self._get_active_message_files()
     
     def write_message(self, key, message):
         encoded_key = int_to_base85(key, self.key_width)
+        partition = self._partitioner(key, self._partitions)
         timestamp = encode_datetime(datetime.utcnow())
         msg_blob = encode_message(message)
-        with self._active_file.open("a") as f:
-            f.write(f"{encoded_key}{timestamp}{msg_blob}\n")
+        binary_msg = f"{encoded_key}{timestamp}{msg_blob}\n".encode("utf-8")
+        with self._active_file(partition).open("ab", buffering=0) as f:
+            f.write(binary_msg)
+
+    def _get_active_message_files(self):
+        """Searches for the current active message files across all partitions"""
+        topic_dir = self._twain.root_dir / self.topic
+        active_files = dict()
+        message_files = list(topic_dir.iterdir())        
+        
+        for partition in range(self._partitions):       
+            chunk_part_str = f"{partition}-{datetime.utcnow():%Y%m%d}"
+            active_file = [x for x in message_files if x.stem.split("_")[0] == chunk_part_str]
+            if len(active_file) == 0:
+                partition_files = [x for x in message_files if x.stem.split("-")[0] == partition]
+                if len(partition_files) == 0:
+                    file_offset = 0
+                else:
+                    prev_file = max(partition_files)
+                    with prev_file.open("r") as f:
+                        prev_file_len = len(f.readlines())
+                    prev_file_offset = int(prev_file.stem.split("_")[1])
+                    file_offset = prev_file_offset + prev_file_len
+                new_active_file = topic_dir / f"{chunk_part_str}_{file_offset}.tmf"
+                self._init_new_message_file(new_active_file)
+                active_files[partition] = new_active_file
+            elif len(active_file) == 1:
+                active_files[partition] = active_file[0]
+            else:
+                raise TopicCorruptError(f"Multiple message files for the same chunk partition {partition}-{chunk_str}")
+    
+    def _init_new_message_file(self, new_active_file):
+        new_active_file.touch()
+    
+    def _active_file(self, partition):
+        """Returns the current file to be written to for a partition"""
+        chunk_str = f"{datetime.utcnow():%Y%m%d}"
+        if chunk_str != self._chunk_str:
+            self._message_file, self._chunk_str = self._get_active_message_file()
+        return self._message_file
+
+    def close(self):
+        pass
 
 _RAW_MESSAGE = b"\x98" # unused so far
 _GZIP_BYTES = b"\x99"
@@ -335,6 +465,13 @@ def base85_to_int(s: str, width: int) -> int:
     """
     b = base64.b85decode(s.encode("ascii"))
     return int.from_bytes(b, byteorder="big", signed=False)
+
+def partition_hash64(x, partitions) -> int:
+    """Using splitmix64 to convert the integer key into a partition number for even mixing."""
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
+    x = (x ^ (x >> 27)) * 0x94d049bb133111eb
+    x = x ^ (x >> 31)
+    return x % partitions
 
 class TestBase85Encoding(unittest.TestCase):
     def test_round_trip_small_numbers(self):
