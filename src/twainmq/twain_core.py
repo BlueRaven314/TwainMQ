@@ -363,7 +363,7 @@ class TwainMQProducer(TwainMQBase):
         if partitioner is None:
             partitioner = partition_hash64
         self._partitioner = partitioner
-        self._active_files = self._get_active_message_files()
+        self._active_files, self._chunk_str = self._get_active_message_files()
     
     def write_message(self, key, message):
         encoded_key = int_to_base85(key, self.key_width)
@@ -380,8 +380,9 @@ class TwainMQProducer(TwainMQBase):
         active_files = dict()
         message_files = list(topic_dir.iterdir())        
         
-        for partition in range(self._partitions):       
-            chunk_part_str = f"{partition}-{datetime.utcnow():%Y%m%d}"
+        for partition in range(self._partitions):   
+            chunk_str = f"{datetime.utcnow():%Y%m%d}"
+            chunk_part_str = f"{partition}-{chunk_str}"
             active_file = [x for x in message_files if x.stem.split("_")[0] == chunk_part_str]
             if len(active_file) == 0:
                 partition_files = [x for x in message_files if x.stem.split("-")[0] == partition]
@@ -400,6 +401,7 @@ class TwainMQProducer(TwainMQBase):
                 active_files[partition] = active_file[0]
             else:
                 raise TopicCorruptError(f"Multiple message files for the same chunk partition {partition}-{chunk_str}")
+        return active_files, chunk_str
     
     def _init_new_message_file(self, new_active_file):
         new_active_file.touch()
@@ -408,8 +410,8 @@ class TwainMQProducer(TwainMQBase):
         """Returns the current file to be written to for a partition"""
         chunk_str = f"{datetime.utcnow():%Y%m%d}"
         if chunk_str != self._chunk_str:
-            self._message_file, self._chunk_str = self._get_active_message_file()
-        return self._message_file
+            self._active_files, self._chunk_str = self._get_active_message_files()
+        return self._active_files[partition]
 
     def close(self):
         pass
