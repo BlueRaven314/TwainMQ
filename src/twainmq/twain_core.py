@@ -196,8 +196,7 @@ class TwainMQConsumerlet(TwainMQBase):
     def __init__(self, twain, topic, partition, offset=None):
         super().__init__(twain, topic)
         self._partition = partition
-        self._current_file_handle = None
-        self._offset = None
+        self._seek_active_file(offset)
     
     def _seek_active_file(self, offset = None):
         """Sets the file handle to the active file to read from and seeks to the end.
@@ -220,8 +219,18 @@ class TwainMQConsumerlet(TwainMQBase):
                 self._offset = offset
             else:
                 raise TopicCorruptError(f"Multiple message files for the same chunk partition {partition}-{chunk_str}")
-        elif offset > 0:
-            return part_files
+        elif offset >= 0:
+            offsets_and_files = sorted([(int(f.stem.split("_")[1]), f) for f in part_files])
+            offset, current_file = offsets_and_files[0]
+            for o, f in offsets_and_files:
+                if o >= offset:
+                    offset, current_file = o, f
+                    break
+            self._current_file_handle = current_file.open("r", encoding = "utf-8")
+            self._offset = offset
+            while self._offset < offset:
+                self._current_file_handle.readline()
+                self._offset += 1
         else:
             raise NotImplementedError("Seek back from end not yet implemented")
     
