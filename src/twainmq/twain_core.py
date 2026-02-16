@@ -8,10 +8,11 @@ import numpy as np
 import os
 from collections import namedtuple
 import unittest
-import random
-import shutil
+import bisect
 import logging
 import json
+import random
+import shutil
 logger = logging.getLogger(__name__)
 
 class TwainMQError(Exception): pass
@@ -167,15 +168,6 @@ class TwainMQBase(ABC):
     def chunk_str_now(self):
         return f"{datetime.utcnow():%Y%m%d}"
 
-    # @property
-    # def offset(self):
-        # return self._current_offset
-
-    # def close(self):
-        # if self._current_file_handle is not None:
-            # self._current_file_handle.close()
-        # self._current_file_handle = None
-
 class TwainMQConsumer(TwainMQBase):
     """A consumer"""
     def __init__(self, twain, topic, group = None):
@@ -183,7 +175,6 @@ class TwainMQConsumer(TwainMQBase):
         self._twain = twain
         self._topic = topic
         self._group = group
-        
         
     def poll(self):
         pass
@@ -206,8 +197,8 @@ class TwainMQConsumerlet(TwainMQBase):
         If the latest file is missing then it will return None.
         """
         part_files = self._list_partition_files()
-        chunk_str = self.chunk_str_now
         if offset is None:
+            chunk_str = self.chunk_str_now
             head_file = [f for f in part_files if f.stem.split("-")[1].split("_")[0] == chunk_str]
             if len(head_file) == 0:
                 self._current_file_handle = None
@@ -217,17 +208,19 @@ class TwainMQConsumerlet(TwainMQBase):
                 while self._current_file_handle.readline():
                     offset += 1
                 self._offset = offset
+                self._chunk_str = chunk_str
             else:
                 raise TopicCorruptError(f"Multiple message files for the same chunk partition {partition}-{chunk_str}")
         elif offset >= 0:
-            offsets_and_files = sorted([(int(f.stem.split("_")[1]), f) for f in part_files])
-            offset, current_file = offsets_and_files[0]
-            for o, f in offsets_and_files:
-                if o >= offset:
-                    offset, current_file = o, f
-                    break
+            offsets_files_chunks = sorted([(int(f.stem.split("_")[1]), f, f.stem.split("_")[0].split("-")[1]) for f in part_files])
+                        
+            offsets = [o for o, _, _ in offsets_files_chunks]
+            i = bisect.bisect_right(offsets, offset) - 1
+            this_offset, current_file, chunk_str = offsets_files_chunks[max(i, 0)]
+
             self._current_file_handle = current_file.open("r", encoding = "utf-8")
-            self._offset = offset
+            self._offset = this_offset
+            self._chunk_str = chunk_str
             while self._offset < offset:
                 self._current_file_handle.readline()
                 self._offset += 1
@@ -245,7 +238,11 @@ class TwainMQConsumerlet(TwainMQBase):
                 return None
         msg_line = self._current_file_handle.readline()[:-1]
         if msg_line == "":
-            return None
+            if self.chunk_str_now == self._chunk_str:
+                return None
+            else:
+                self._seek_active_file(self._offset)
+                msg_line = self._current_file_handle.readline()[:-1]
         key = base85_to_int(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
         message = decode_message(msg_line[self._key_chars+10:])
