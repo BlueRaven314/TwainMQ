@@ -13,6 +13,7 @@ import logging
 import json
 import random
 import shutil
+from typing import Literal
 logger = logging.getLogger(__name__)
 
 class TwainMQError(Exception): pass
@@ -124,8 +125,10 @@ class Twain:
     def producer(self, topic_name):
         return TwainMQProducer(self, topic_name)
 
-    def consumer(self, topic_name, group = None):
-        return TwainMQConsumer(self, topic_name, group)
+    def consumer(self, topic_name, start_from = None, group = None):
+        if start_from is None:
+            start_from = "start"
+        return TwainMQConsumer(self, topic_name, start_from, group)
 
     def _topic_path(self, topic_name):
         return self.root_dir / topic_name
@@ -147,7 +150,7 @@ class TwainMQBase(ABC):
         with config_path.open("r") as f:
             config = json.load(f)
         self._key_width = config["key_width"]
-        self._partitions = int(config["partitions"])
+        self._n_partitions = int(config["partitions"])
         self._key_chars = ENCODED_WIDTHS[self._key_width]
     
     @property
@@ -170,14 +173,29 @@ class TwainMQBase(ABC):
 
 class TwainMQConsumer(TwainMQBase):
     """A consumer"""
-    def __init__(self, twain, topic, group = None):
+    def __init__(self, twain, topic, start_from = "start", group = None):
         super().__init__(twain, topic)
         self._twain = twain
         self._topic = topic
         self._group = group
+        self._partitions = [i for i in range(self._n_partitions)]
+        if start_from == "start":
+            self._consumerlets = {p: TwainMQConsumerlet(twain, topic, p, offset=0) for p in self._partitions}
+        elif start_from == "now":
+            self._consumerlets = {p: TwainMQConsumerlet(twain, topic, p, offset=None) for p in self._partitions}
+        else:
+            raise ValueError(f'start_from should be either "start" of "now", received: "{start_from}"')
+        self._last_polled = 0
         
     def poll(self):
-        pass
+        n = len(self._partitions)
+        for p_offset in range(n):
+            partition_to_poll = self._partitions[(self._last_polled + p_offset + 1) % n]
+            this_consumerlet = self._consumerlets[partition_to_poll]
+            msg = this_consumerlet.poll()
+            if msg is not None:
+                self._last_polled = partition_to_poll
+                return msg
     
     def __str__(self):
         return f"TwainMQConsumer(topic={self._topic}, group={self._group})"
@@ -277,7 +295,7 @@ class TwainMQProducer(TwainMQBase):
 
     def write_message(self, key, message):
         encoded_key = int_to_base85(key, self.key_width)
-        partition = self._partitioner(key, self._partitions)
+        partition = self._partitioner(key, self._n_partitions)
         timestamp = encode_datetime(datetime.now())
         msg_blob = encode_message(message)
         binary_msg = f"{encoded_key}{timestamp}{msg_blob}\n".encode("utf-8")
@@ -292,7 +310,7 @@ class TwainMQProducer(TwainMQBase):
         active_files = dict()
         message_files = list(topic_dir.iterdir())
         
-        for partition in range(self._partitions):  
+        for partition in range(self._n_partitions):  
             chunk_str = self.chunk_str_now
             chunk_part_str = f"{partition}-{chunk_str}"
             active_file = [x for x in message_files if x.stem.split("_")[0] == chunk_part_str]
