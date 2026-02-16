@@ -219,11 +219,14 @@ class TwainMQConsumerlet(TwainMQBase):
             this_offset, current_file, chunk_str = offsets_files_chunks[max(i, 0)]
 
             self._current_file_handle = current_file.open("r", encoding = "utf-8")
-            self._offset = this_offset
             self._chunk_str = chunk_str
+            self._offset = this_offset
             while self._offset < offset:
-                self._current_file_handle.readline()
-                self._offset += 1
+                line = self._current_file_handle.readline()
+                if line != "":
+                    self._offset += 1
+                else:
+                    break
         else:
             raise NotImplementedError("Seek back from end not yet implemented")
     
@@ -246,13 +249,14 @@ class TwainMQConsumerlet(TwainMQBase):
         key = base85_to_int(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
         message = decode_message(msg_line[self._key_chars+10:])
-        self._offset += 1
-        return MessageTuple(
+        msg_tuple = MessageTuple(
             offset=self._offset,
             key=key,
             timestamp=timestamp,
             message=message
         )
+        self._offset += 1
+        return msg_tuple
 
     @property
     def partition(self):
