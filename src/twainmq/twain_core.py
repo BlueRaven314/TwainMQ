@@ -13,19 +13,69 @@ import logging
 import json
 import random
 import shutil
+import re
+import time
 from typing import Literal
+from dataclasses import fields, is_dataclass, asdict
+
 logger = logging.getLogger(__name__)
 
 class TwainMQError(Exception): pass
 class TopicCorruptError(TwainMQError): pass
-class ConfigNotFoundError(FileNotFoundError, TwainMQError): pass
+class ConfigNotFoundError(TwainMQError): pass
+class InvalidTopicNameError(ValueError, TwainMQError): pass
+class InvalidGroupNameError(ValueError, TwainMQError): pass
 class TopicAlreadyExists(TwainMQError): pass
 class NoActiveMessageFileToReadError(TwainMQError): pass
 class InvalidKeyTypeError(TwainMQError): pass
 class TopicDeleteError(TwainMQError): pass
+class TwainSchemaError(TwainMQError): pass
+class NoSchemaError(TwainSchemaError): pass
 
 MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
 MAX_MESSAGE_SIZE = 4096
+
+VALID_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
+
+## Anything in the range \x80 to \xBF ought to be safe to use as sentinal magic bytes
+_MULTIPART_START = b"\x80"
+_MULTIPART_CONTINUE = b"\x81"
+_MULTIPART_END = b"\x82"
+_DATACLASS_MAGIC = b"\x98"
+_GZIP_MAGIC = b"\x99"
+
+## CONSUMER GROUP MESSAGES
+from dataclasses import dataclass
+from dataclasses_jsonschema import JsonSchemaMixin
+from datetime import datetime
+
+@dataclass
+class Joined(JsonSchemaMixin):
+    uuid: int
+    __message_type__ = "JOINED"
+    __schema_version__ = 1
+
+@dataclass
+class Claim(JsonSchemaMixin):
+    partitions: list[int]
+    __message_type__ = "CLAIM"
+    __schema_version__ = 1
+
+
+@dataclass
+class BeginRebal(JsonSchemaMixin):
+    timestamp: datetime
+    __message_type__ = "BEGIN_REBAL"
+    __schema_version__ = 1
+##
+
+def _is_safe(name: str) -> bool:
+    return bool(VALID_NAME_RE.fullmatch(name))
+
+def _group_topic_name(group):
+    if not _is_safe(group):
+        raise InvalidGroupNameError(f"Consumer group names must be [a-zA-Z0-9_.], {group} is not valid")
+    return f"--group--{group}"
 
 class Twain:
     """
@@ -73,15 +123,23 @@ class Twain:
     """
     def __init__(self, root_dir):
         self._root_dir = Path(root_dir)
-        
-    def create_topic(self, topic_name, key_type = None, partitions = 1):
+        self._msg_cls_registry = dict()
+
+    def register_msg_cls(self, message_cls):
+        name = message_cls.__name__
+        if name in self._msg_cls_registry:
+            raise KeyError(f"Class already registered: {name}")
+        self._msg_cls_registry[name] = message_cls
+
+    def create_topic(self, topic_name, key_type = None, partitions = 1, message_types = None):
         """Create a new topic
         
         Args:
             twain_directory: The root directory for twain MQs
             topic_name: The name of the topic
-            partitions: The number of partitions to split it into, default = 1
             key_type:  The key type ("u8", "u16", "u32", "u64", "str"), default  = "u16"
+            partitions: The number of partitions to split it into, default = 1          
+            schema: List of message dataclass names
         """
         
         key_types = dict(
@@ -91,7 +149,9 @@ class Twain:
         u64 = 8,
         str = 0,
         )
-        
+        if not _is_safe(topic_name):
+            raise InvalidTopicNameError("Topic name contains invalid characters")
+
         if key_type is None:
             key_type = "u16"
         
@@ -102,14 +162,22 @@ class Twain:
             key_width = key_types[key_type]
         except KeyError:
             raise InvalidKeyTypeError(f"{key_type} is not a valid key_type. Options are {', '.join(key_types.keys())}")
-           
+        
         topic_path = self._topic_path(topic_name)
         if topic_path.exists():
             raise ValueError(f"Cannot create topic, {topic_name} already exists")
         new_topic_dir = topic_path.mkdir()
         config_path = self._config_path(topic_name)
+        if message_types is None:
+            message_types = {}
+        else:
+            message_types = {m: i for i, m in enumerate(message_types)}
+        config = dict(
+            key_width = key_width,
+            partitions = partitions,
+            message_types = message_types,
+        )
         
-        config = dict(key_width = key_width, partitions = partitions)
         with config_path.open("w", encoding="utf-8") as f:
             json.dump(config, f, indent = 0)
 
@@ -133,6 +201,10 @@ class Twain:
     def _topic_path(self, topic_name):
         return self.root_dir / topic_name
 
+    def _topic_exists(self, topic_name):
+        """Checks if a topic exists"""
+        return self._topic_path(topic_name).exists()
+
     def _config_path(self, topic_name):
         return self.root_dir / f"{topic_name}.twc"
 
@@ -150,6 +222,8 @@ class TwainMQBase(ABC):
         with config_path.open("r") as f:
             config = json.load(f)
         self._key_width = config["key_width"]
+        self._message_types = config["message_types"]
+        self._message_types_rev = {i: msg_type for msg_type, i in self._message_types.items()}
         self._n_partitions = int(config["partitions"])
         self._key_chars = ENCODED_WIDTHS[self._key_width]
     
@@ -177,8 +251,10 @@ class TwainMQConsumer(TwainMQBase):
         super().__init__(twain, topic)
         self._twain = twain
         self._topic = topic
-        self._group = group
-        self._partitions = [i for i in range(self._n_partitions)]
+        if group is None:
+            self._partitions = [i for i in range(self._n_partitions)]
+        else:
+            self._join_group(group)
         if start_from == "start":
             self._consumerlets = {p: TwainMQConsumerlet(twain, topic, p, offset=0) for p in self._partitions}
         elif start_from == "now":
@@ -187,6 +263,34 @@ class TwainMQConsumer(TwainMQBase):
             raise ValueError(f'start_from should be either "start" of "now", received: "{start_from}"')
         self._last_polled = 0
         
+    def _join_group(self, group):
+        group_topic = _group_topic_name(group)
+        if not self._twain._topic_exists(group_topic):
+            self.create_topic(group_topic, key_type = "u8", partitions = 1)
+        gprod = self._twain.producer(group_topic)
+        gcom = self._twain.consumer(group_topic, start_from = "start", group = None)
+        self._group_producer = gprod
+        self._group_consumer = gcom
+        
+        keys_taken = {}
+        while (msg := gcon.poll()) is not None:
+            keys_taken.add(msg.key)
+        
+        consumer_id = 0
+        while consumer_id in keys:
+            consumer_id += 1
+        self._consumer_id = consumer_id
+        join_token = f"{random.getrandbits(64):016x}"
+        gprod.write_message(self._consumer_id, f"J{join_token}")
+        
+        while True:
+            msg = gcon.poll()
+            if msg is None:
+                time.sleep(0.5)
+            if msg.message[0] == "J":
+                key = msg.key
+                token = msg.message[1:]
+            
     def poll(self):
         n = len(self._partitions)
         for p_offset in range(n):
@@ -206,6 +310,19 @@ class TwainMQConsumerlet(TwainMQBase):
         super().__init__(twain, topic)
         self._partition = partition
         self._seek_active_file(offset)
+
+    def decode_message(self, message):
+        compressed = base64.b85decode(message.encode("utf-8"))
+        decoded = zlib.decompress(compressed, wbits=-15)
+        if decoded.startswith(_GZIP_MAGIC):
+            return decoded[1:]
+        elif decoded.startswith(_DATACLASS_MAGIC):
+            class_id = int.from_bytes(decoded[1:3], "big", signed=False)
+            message_type = self._twain._msg_cls_registry[self._message_types_rev[class_id]]
+            data = json.loads(decoded[3:])
+            return dataclass_from_dict(message_type, data)
+        else:
+            return decoded.decode("utf-8")
     
     def _seek_active_file(self, offset = None):
         """Sets the file handle to the active file to read from and seeks to the end.
@@ -266,7 +383,7 @@ class TwainMQConsumerlet(TwainMQBase):
                 msg_line = self._current_file_handle.readline()[:-1]
         key = base85_to_int(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
-        message = decode_message(msg_line[self._key_chars+10:])
+        message = self.decode_message(msg_line[self._key_chars+10:])
         msg_tuple = MessageTuple(
             offset=self._offset,
             key=key,
@@ -293,11 +410,24 @@ class TwainMQProducer(TwainMQBase):
     def __exit__(self, type, value, traceback):
         self.close()
 
+    def encode_message(self, message):
+        if is_dataclass(message):
+            json_str = json.dumps(asdict(message), separators=(",", ":"))
+            cls_name = message.__class__.__name__
+            cls_id = self._message_types[cls_name].to_bytes(2, "big", signed = False)
+            payload = _DATACLASS_MAGIC + cls_id + json_str.encode("utf-8")
+        elif isinstance(message, bytes):
+            payload = _GZIP_MAGIC + message
+        else:
+            payload = message.encode("utf-8")
+        compressed = zlib.compress(payload, level=6, wbits=-15)
+        return base64.b85encode(compressed).decode("utf-8")
+        
     def write_message(self, key, message):
         encoded_key = int_to_base85(key, self.key_width)
         partition = self._partitioner(key, self._n_partitions)
         timestamp = encode_datetime(datetime.now())
-        msg_blob = encode_message(message)
+        msg_blob = self.encode_message(message)
         binary_msg = f"{encoded_key}{timestamp}{msg_blob}\n".encode("utf-8")
         if len(binary_msg) > MAX_MESSAGE_SIZE:
             raise MessageTooLongError("Message exceeds max message size: {len(binary_msg)} bytes > {MAX_MESSAGE_SIZE} bytes")
@@ -346,9 +476,6 @@ class TwainMQProducer(TwainMQBase):
     def close(self):
         pass
 
-_RAW_MESSAGE = b"\x98" # unused so far
-_GZIP_BYTES = b"\x99"
-## Anything in the range \x80 to \xBF ought to be safe to use as sentinal bytes
 
 def encode_datetime(dt):
     """Return 10 byte encoded date string"""
@@ -357,22 +484,14 @@ def encode_datetime(dt):
 def decode_datetime(dt):
     return datetime.fromtimestamp(np.frombuffer(base64.b85decode(dt.encode("utf-8")))[0])
 
-def encode_message(message):
-    if isinstance(message, bytes):
-        payload = _GZIP_BYTES + message
-    else:
-        payload = message.encode("utf-8")
-    # Need to test to optimise the compression rate
-    compressed = zlib.compress(payload, level=6, wbits=-15)
-    return base64.b85encode(compressed).decode("utf-8")
-
-def decode_message(message):
-    compressed = base64.b85decode(message.encode("utf-8"))
-    decoded = zlib.decompress(compressed, wbits=-15)
-    if decoded.startswith(_GZIP_BYTES):
-        return decoded[1:]
-    else:
-        return decoded.decode("utf-8")
+def dataclass_from_dict(cls, data):
+    kwargs = {}
+    for f in fields(cls):
+        value = data[f.name]
+        if is_dataclass(f.type):
+            value = dataclass_from_dict(f.type, value)
+        kwargs[f.name] = value
+    return cls(**kwargs)
 
 def int_to_base85(n: int, width: int) -> str:
     """
