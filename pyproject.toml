@@ -6,21 +6,55 @@ build-backend = "setuptools.build_meta"
 name = "twainmq"
 version = "0.1.0"
 description = "A file-based messaging package"
+
 authors = [
     { name = "Mike Crowe", email = "you@example.com" }
 ]
+
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.8"
 
-dependencies = [
-    "numpy>=1.21"
+keywords = [
+    "messaging",
+    "message-queue",
+    "queue",
+    "pubsub",
+    "publish-subscribe",
+    "log-based",
+    "event-stream",
+    "event-log",
+    "file-based",
+    "lightweight",
+    "local",
+    "stream-processing",
+    "consumer-groups",
+    "partitioning",
+    "offsets",
+    "kafka-like"
 ]
+
+dependencies = []
 
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+]
+
+[project.urls]
+homepage = "https://github.com/BlueRaven314/TwainMQ"
+repository = "https://github.com/BlueRaven314/TwainMQ"
+issues = "https://github.com/BlueRaven314/TwainMQ/issues"
+
+[project.optional-dependencies]
+docs = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings[python]",
+    "mkdocs-gen-files",
+    "mkdocs-literate-nav",
+    "mkdocs-section-index",
 ]
 
 [tool.setuptools.packages.find]

@@ -1,0 +1,21 @@
+site_name: TwainMQ
+theme:
+  name: material
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: google
+            show_source: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+  - Architecture:
+      - Overview: architecture/index.md
+  - API Reference: api/reference.md
