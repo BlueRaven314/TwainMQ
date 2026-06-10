@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "twainmq"
 version = "0.1.0"
-description = "A file-based messaging package"
+description = "A file-based message queue. Kafka‑inspired. Twain‑simple."
 
 authors = [
     { name = "Mike Crowe", email = "you@example.com" }
