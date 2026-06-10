@@ -618,7 +618,7 @@ class TwainMQConsumerlet(TwainMQBase):
             else:
                 self._seek_active_file(self._offset)
                 msg_line = self._current_file_handle.readline()[:-1]
-        key = base85_to_int(msg_line[:self._key_chars], self._key_width)
+        key = base85_to_key(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
         message = self.decode_message(msg_line[self._key_chars+10:])
         msg_tuple = MessageTuple(
@@ -661,7 +661,7 @@ class TwainMQProducer(TwainMQBase):
         return base64.b85encode(compressed).decode("utf-8")
         
     def write_message(self, key, message):
-        encoded_key = int_to_base85(key, self.key_width)
+        encoded_key = key_to_base85(key, self.key_width)
         partition = self._partitioner(key, self._n_partitions)
         timestamp = encode_datetime(datetime.now())
         msg_blob = self.encode_message(message)
@@ -773,6 +773,8 @@ def find_key_char_width(width) -> int:
 
 def partition_hash64(x, partitions) -> int:
     """Using splitmix64 to convert the key into a partition number for even mixing."""
+    if isinstance(x, str):
+        x = int.from_bytes(x.encode("utf-8"), signed = False)
     x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
     x = (x ^ (x >> 27)) * 0x94d049bb133111eb
     x = x ^ (x >> 31)
@@ -781,30 +783,30 @@ def partition_hash64(x, partitions) -> int:
 class TestBase85Encoding(unittest.TestCase):
     def test_round_trip_small_numbers(self):
         for n in [0, 1, 42, 255, 256, 12345]:
-            enc = int_to_base85(n, width=2)
-            dec = base85_to_int(enc, width=2)
+            enc = key_to_base85(n, width=2)
+            dec = base85_to_key(enc, width=2)
             self.assertEqual(dec, n)
 
     def test_round_trip_large_numbers(self):
         # Max 64-bit unsigned integer
         n = 2**64 - 1
-        enc = int_to_base85(n, width=8)
-        dec = base85_to_int(enc, width=8)
+        enc = key_to_base85(n, width=8)
+        dec = base85_to_key(enc, width=8)
         self.assertEqual(dec, n)
 
     def test_fixed_length_output(self):
         n = 123
-        enc = int_to_base85(n, width=1)
+        enc = key_to_base85(n, width=1)
         self.assertEqual(len(enc), 2)
         n = 123456789
-        enc = int_to_base85(n, width=4)
+        enc = key_to_base85(n, width=4)
         self.assertEqual(len(enc), 5)
-        enc = int_to_base85(n, width=8)
+        enc = key_to_base85(n, width=8)
         self.assertEqual(len(enc), 10)
 
     def test_different_numbers_produce_different_encodings(self):
-        enc1 = int_to_base85(123, width=1)
-        enc2 = int_to_base85(124, width=1)
+        enc1 = key_to_base85(123, width=1)
+        enc2 = key_to_base85(124, width=1)
         self.assertNotEqual(enc1, enc2)
 
 if __name__ == "__main__":
