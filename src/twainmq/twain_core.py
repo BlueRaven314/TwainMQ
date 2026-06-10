@@ -398,7 +398,7 @@ class TwainMQConsumer(TwainMQBase):
         self.heartbeat()
 
     def _create_consumer_group(self, group_topic, start_from):
-        self._twain.create_topic(group_topic, key_type = "u8", partitions = 1, message_types = CONSUMER_GROUP_MESSAGE_SET)
+        self._twain.create_topic(group_topic, key_type = "u32", partitions = 1, message_types = CONSUMER_GROUP_MESSAGE_SET)
         with self._twain.producer(group_topic) as gprod:
             if start_from == "start":
                 init_commits = [(i, 0) for i in range(self._n_partitions)]
@@ -423,9 +423,7 @@ class TwainMQConsumer(TwainMQBase):
             keys_taken.add(msg.key)
             self._process_group_msg(msg)
             
-        consumer_id = 0
-        while consumer_id in keys_taken:
-            consumer_id += 1
+        consumer_id = max(keys_taken) + 1
         join_key = random.getrandbits(64)
         gprod.write_message(consumer_id, Joined(join_key))
         
