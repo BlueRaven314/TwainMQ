@@ -1,6 +1,6 @@
 # TwainMQ
 
-**TwainMQ** is a lightweight, file‑based message log inspired by Kafka’s design principles but without the operational overhead of running a broker or cluster. It provides durable, append‑only topics, partitioned message streams, consumer groups with load balancing, and offset management — all implemented in pure Python.
+**TwainMQ** is a lightweight, file‑based message log inspired by Kafka’s design principles but without the operational overhead of running a broker or cluster. It provides durable, append‑only topics, partitioned message streams, consumer groups with load balancing, and offset managemen, all without using a central service or broker.
 
 TwainMQ is designed for:
 
