@@ -15,7 +15,7 @@ import random
 import shutil
 import re
 import time
-from dataclasses import fields, is_dataclass, asdict
+from dataclasses import fields, is_dataclass, asdict, dataclass
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +46,7 @@ _DATACLASS_MAGIC = b"\x98"
 _GZIP_MAGIC = b"\x99"
 
 ## CONSUMER GROUP MESSAGES
-from dataclasses import dataclass
 from dataclasses_jsonschema import JsonSchemaMixin
-from datetime import datetime
 
 @dataclass
 class Joined(JsonSchemaMixin):

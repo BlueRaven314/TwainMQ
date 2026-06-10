@@ -1,13 +1,34 @@
 # TwainMQ
-A service free, file-based message queue.  Like Kafka but lightweight and easy to use.
 
-## 📘 Documentation
+**TwainMQ** is a lightweight, file‑based message log inspired by Kafka’s design principles but without the operational overhead of running a broker or cluster. It provides durable, append‑only topics, partitioned message streams, consumer groups with load balancing, and offset management — all implemented in pure Python.
+
+TwainMQ is designed for:
+
+- local development workflows  
+- embedded systems  
+- single‑machine (or small local network) data pipelines  
+- teaching and experimentation with log‑based messaging  
+- applications that need Kafka‑like semantics without a server  
+
+It requires **no services**, **no daemons**, and **no external dependencies**.
+
+---
+
+## Features
+
+- **No running services or brokers**, just an API and distributed self-organisation
+- **File‑based topics** stored as append‑only logs
+- **Partitions** for parallelism and ordering guarantees
+- **Consumer groups** with automatic load balancing
+- **Offset tracking and commits**
+- **Typed messages** (supports dataclasses)
+- **Simple API** for producers and consumers
+
+## Documentation
 
 Full documentation is available at:
 
 **https://blueraven314.github.io/TwainMQ/**
-
-This includes installation instructions, tutorials, architecture notes, and the full API reference.
 
 ## Why “TwainMQ”?  
 

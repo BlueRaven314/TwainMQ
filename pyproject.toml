@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "twainmq"
-version = "0.1.0"
+version = "0.1.1"
 description = "A file-based message queue. Kafka‑inspired. Twain‑simple."
 
 authors = [
@@ -34,7 +34,9 @@ keywords = [
     "kafka-like"
 ]
 
-dependencies = []
+dependencies = [
+    "dataclasses-jsonschema>=2.16.0",
+]
 
 classifiers = [
     "Programming Language :: Python :: 3",

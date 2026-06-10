@@ -10,20 +10,19 @@ TwainMQ is designed for:
 - teaching and experimentation with log‑based messaging  
 - applications that need Kafka‑like semantics without a server  
 
-It requires **no services**, **no daemons**, and **no external dependencies**.
+It requires **no services**, **no central authority**, just a directory where the files will live.  All coordination is done via the log files.
 
 ---
 
 ## Features
 
-- **File‑based topics** stored as append‑only logs  
-- **Partitions** for parallelism and ordering guarantees  
-- **Consumer groups** with automatic load balancing  
-- **Offset tracking and commits**  
-- **Typed messages** (supports dataclasses)  
-- **Zero dependencies** (pure Python)  
-- **Simple API** for producers and consumers  
-- **Deterministic, inspectable storage format**  
+- **No running services or brokers**, just an API and distributed self-organisation
+- **File‑based topics** stored as append‑only logs
+- **Partitions** for parallelism and ordering guarantees
+- **Consumer groups** with automatic load balancing
+- **Offset tracking and commits**
+- **Typed messages** (supports dataclasses)
+- **Simple API** for producers and consumers
 
 ---
 
