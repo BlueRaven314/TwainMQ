@@ -343,7 +343,7 @@ class TwainMQBase(ABC):
         self._message_types = config["message_types"]
         self._message_types_rev = {i: msg_type for msg_type, i in self._message_types.items()}
         self._n_partitions = int(config["partitions"])
-        self._key_chars = ENCODED_WIDTHS[self._key_width]
+        self._key_chars = find_key_char_width(self._key_width)
     
     @property
     def topic(self):
@@ -762,7 +762,14 @@ def base85_to_key(s: str, width: int) -> int:
     else:
         raise NotImplementedError("Zero width keys not yet supported")
 
-ENCODED_WIDTHS = {i: len(key_to_base85(1, width = i)) for i in range(1, 17)}
+def find_key_char_width(width) -> int:
+    """Find the width of the key when encoded"""
+    if width > 0:
+        return len(key_to_base85(1, width = width))
+    elif width < 0:
+        return len(key_to_base85("a", width = width))
+    else:
+        raise NotImplementedError("Zero width keys not yet supported")
 
 def partition_hash64(x, partitions) -> int:
     """Using splitmix64 to convert the key into a partition number for even mixing."""
