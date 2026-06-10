@@ -27,6 +27,7 @@ class InvalidGroupNameError(ValueError, TwainMQError): pass
 class TopicAlreadyExists(TwainMQError): pass
 class NoActiveMessageFileToReadError(TwainMQError): pass
 class InvalidKeyTypeError(TwainMQError): pass
+class InvalidMessageKeyError(TwainMQError): pass
 class TopicDeleteError(TwainMQError): pass
 class TwainSchemaError(TwainMQError): pass
 class NoSchemaError(TwainSchemaError): pass
@@ -110,7 +111,6 @@ class Commit(JsonSchemaMixin):
 
 CONSUMER_GROUP_MESSAGE_CLASSES = [Joined, AbortJoin, RebalOffer, RebalConfirm, BeginRebal, EndRebal, Commit]
 CONSUMER_GROUP_MESSAGE_SET = [c.__message_type__ for c in CONSUMER_GROUP_MESSAGE_CLASSES]
-##
 
 def _is_safe(name: str) -> bool:
     return bool(VALID_NAME_RE.fullmatch(name))
@@ -253,7 +253,7 @@ class Twain:
         Args:
             twain_directory: The root directory for twain MQs
             topic_name: The name of the topic
-            key_type:  The key type ("u8", "u16", "u32", "u64", "str"), default  = "u16"
+            key_type:  The key type ("u8", "u16", "u32", "u64", "char1", "char2", "char4", "char8", "char16"), default  = "u16"
             partitions: The number of partitions to split it into, default = 1          
             schema: List of message dataclass names
         """
@@ -263,16 +263,18 @@ class Twain:
         u16 = 2,
         u32 = 4,
         u64 = 8,
-        str = 0,
+        char1 = -1,
+        char2 = -2,
+        char4 = -4,
+        char8 = -8,
+        char16 = -16,                        
         )
+
         if not _is_safe(topic_name):
             raise InvalidTopicNameError("Topic name contains invalid characters")
 
         if key_type is None:
             key_type = "u16"
-        
-        if key_type == "str":
-            raise NotImplementedError("Support for string keys is not implemented yet")
         
         try:
             key_width = key_types[key_type]
@@ -711,14 +713,6 @@ class TwainMQProducer(TwainMQBase):
     def close(self):
         pass
 
-
-# def encode_datetime(dt):
-#     """Return 10 byte encoded date string"""
-#     return base64.b85encode(np.array(dt.timestamp()).tobytes()).decode("utf-8")
-    
-# def decode_datetime(dt):
-#     return datetime.fromtimestamp(np.frombuffer(base64.b85decode(dt.encode("utf-8")))[0])
-
 def encode_datetime(dt):
     """Return 10 byte encoded date string"""
     ts = dt.timestamp()
@@ -737,32 +731,41 @@ def dataclass_from_dict(cls, data):
         kwargs[f.name] = value
     return cls(**kwargs)
 
-def int_to_base85(n: int, width: int) -> str:
+def key_to_base85(k, width: int) -> str:
     """
-    Encode an unsigned integer into a fixed-length Base85 string.
-
-    Args:
-        n: The unsigned integer to encode.
-        width: Number of bytes to represent the integer (default 8 = 64-bit).
-
-    Returns:
-        A fixed-length Base85 string.
+    Encode the key as a base85 string
     """
-    b = n.to_bytes(width, byteorder="big", signed=False)
+    if width < 0:
+        b = k.encode("utf-8")
+        if len(b) > -width:
+            raise InvalidMessageKeyError(f"Key {k} too long for {-width} byte string")
+        b = b.ljust(-width, b"\0")
+    elif width > 0:
+        try:
+            b = k.to_bytes(width, byteorder="big", signed=False)
+        except OverflowError:
+            raise InvalidMessageKeyError(f"Integer key too large for {width} bytes")
+    else:
+        raise NotImplementedError("Zero width keys not yet supported")
     encoded = base64.b85encode(b)
     return encoded.decode("ascii")
 
-ENCODED_WIDTHS = {i: len(int_to_base85(1, width = i)) for i in range(1, 9)}
-
-def base85_to_int(s: str, width: int) -> int:
+def base85_to_key(s: str, width: int) -> int:
     """
-    Decode a Base85 string back into an unsigned integer.
+    Decode a Base85 string back into an key.
     """
     b = base64.b85decode(s.encode("ascii"))
-    return int.from_bytes(b, byteorder="big", signed=False)
+    if width < 0:
+        return b.rstrip(b"\0").decode("utf-8")
+    elif width > 0:
+        return int.from_bytes(b, byteorder="big", signed=False)
+    else:
+        raise NotImplementedError("Zero width keys not yet supported")
+
+ENCODED_WIDTHS = {i: len(key_to_base85(1, width = i)) for i in range(1, 17)}
 
 def partition_hash64(x, partitions) -> int:
-    """Using splitmix64 to convert the integer key into a partition number for even mixing."""
+    """Using splitmix64 to convert the key into a partition number for even mixing."""
     x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
     x = (x ^ (x >> 27)) * 0x94d049bb133111eb
     x = x ^ (x >> 31)
