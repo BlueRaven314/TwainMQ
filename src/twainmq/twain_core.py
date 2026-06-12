@@ -91,9 +91,6 @@ class BeginRebal(JsonSchemaMixin):
     def __init__(self, timestamp):
         self.timestamp = timestamp
 
-class LeaseRefresh(JsonSchemaMixin):
-    timestamp: float
-
 @dataclass
 class EndRebal(JsonSchemaMixin):
     __message_type__ = "~~TWAIN~~ENDREBAL"
@@ -247,15 +244,14 @@ class Twain:
             raise KeyError(f"Class already registered: {name}")
         self._msg_cls_registry[name] = message_cls
 
-    def create_topic(self, topic_name, key_type = None, partitions = 1, message_types = None):
+    def create_topic(self, topic_name, key_type=None, partitions=1, message_types=None):
         """Create a new topic
         
         Args:
-            twain_directory: The root directory for twain MQs
             topic_name: The name of the topic
             key_type:  The key type ("u8", "u16", "u32", "u64", "char1", "char2", "char4", "char8", "char16"), default  = "u16"
             partitions: The number of partitions to split it into, default = 1          
-            schema: List of message dataclass names
+            message_types: List of message dataclass names, these do not need to be registered at the time create_topic is called.
         """
         
         key_types = dict(
@@ -311,7 +307,7 @@ class Twain:
     def producer(self, topic_name):
         return TwainMQProducer(self, topic_name)
 
-    def consumer(self, topic_name, start_from = None, group = None):
+    def consumer(self, topic_name, start_from=None, group=None):
         if start_from is None:
             start_from = "start"
         return TwainMQConsumer(self, topic_name, start_from, group)
@@ -319,9 +315,13 @@ class Twain:
     def _topic_path(self, topic_name):
         return self.root_dir / topic_name
 
-    def _topic_exists(self, topic_name):
+    def topic_exists(self, topic_name):
         """Checks if a topic exists"""
         return self._topic_path(topic_name).exists()
+
+    def list_topics(self):
+        """Returns a list of all the topics in this TwainMQ instance"""
+        return [t.stem for t in self.root_dir.iterdir() if not t.name.startswith("--group--") if t.name.endswith(".twc")]
 
     def _config_path(self, topic_name):
         return self.root_dir / f"{topic_name}.twc"
