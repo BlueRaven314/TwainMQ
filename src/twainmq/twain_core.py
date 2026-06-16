@@ -16,6 +16,7 @@ import shutil
 import re
 import time
 from dataclasses import fields, is_dataclass, asdict, dataclass
+from .atomic_append import atomic_append
 
 logger = logging.getLogger(__name__)
 
@@ -667,8 +668,7 @@ class TwainMQProducer(TwainMQBase):
         binary_msg = f"{encoded_key}{timestamp}{msg_blob}\n".encode("utf-8")
         if len(binary_msg) > MAX_MESSAGE_SIZE:
             raise MessageTooLongError("Message exceeds max message size: {len(binary_msg)} bytes > {MAX_MESSAGE_SIZE} bytes")
-        with self._active_file(partition).open("ab", buffering=0) as f:
-            f.write(binary_msg)
+        atomic_append(self._active_file(partition), binary_msg)
 
     def _get_active_message_files(self):
         """Searches for the current active message files across all partitions"""
