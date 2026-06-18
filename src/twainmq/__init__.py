@@ -6,11 +6,11 @@ To set up a TwainMQ message queue you simply need to specify a directory for it 
 
 Messages are limited in size to ensure that they can be written quickly.  The size limit is currently set at slightly less than 4kb.
 
-Messages can be either plan UTF-8 or raw bytes.
+Messages can be either plain UTF-8 or raw bytes.
 
 Messages are organised by key, partition and topic.
 
-Keys
+## Keys
 
 u8
 u16

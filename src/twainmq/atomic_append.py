@@ -16,6 +16,11 @@ INVALID_HANDLE_VALUE    = wintypes.HANDLE(-1).value
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
 def atomic_append_win(path, data: bytes) -> None:
+    """Atomic appending to a file under Windows.
+    
+    This makes use of the windows FILE_APPEND_DATA mode which doesn't check the file length first or use a cursor
+    it simply dumps the data on the end of the file.
+    """
     # Accept Path or str
     if isinstance(path, Path):
         path = str(path)
@@ -56,6 +61,13 @@ import errno
 from pathlib import Path
 
 def atomic_append_posix(path, data: bytes, mode: int = 0o644) -> None:
+    """Atomic append function for POSIX systems.
+
+    This should work by using O_APPEND but this is not properly tested yet!
+
+    Short write might in theory happen, but shouldn't, when we can test this better
+    we will know if this is a problem and come up with a solution.
+    """
     # Accept Path or str
     if isinstance(path, Path):
         path = os.fspath(path)
@@ -81,6 +93,8 @@ def atomic_append_posix(path, data: bytes, mode: int = 0o644) -> None:
         os.close(fd)
 
 def atomic_append(path, data: bytes, mode: int = 0o644) -> None:
+    """Atomic writing used by producers to allow multiple producers to write to the same 
+    log file at the same time without locks"""
     if os.name == "nt":
         atomic_append_win(path, data)
     else:

@@ -16,22 +16,14 @@ import shutil
 import re
 import time
 from dataclasses import fields, is_dataclass, asdict, dataclass
+
+from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, base85_to_key, dataclass_from_dict, decode_datetime, encode_datetime, find_key_char_width, key_to_base85, partition_hash64
+
+from .errors import MessageTooLongError, TopicCorruptError, InvalidGroupNameError, InvalidTopicNameError, InvalidKeyTypeError, TopicDeleteError, ConfigNotFoundError
 from .atomic_append import atomic_append
+from dataclasses_jsonschema import JsonSchemaMixin
 
 logger = logging.getLogger(__name__)
-
-class TwainMQError(Exception): pass
-class TopicCorruptError(TwainMQError): pass
-class ConfigNotFoundError(TwainMQError): pass
-class InvalidTopicNameError(ValueError, TwainMQError): pass
-class InvalidGroupNameError(ValueError, TwainMQError): pass
-class TopicAlreadyExists(TwainMQError): pass
-class NoActiveMessageFileToReadError(TwainMQError): pass
-class InvalidKeyTypeError(TwainMQError): pass
-class InvalidMessageKeyError(TwainMQError): pass
-class TopicDeleteError(TwainMQError): pass
-class TwainSchemaError(TwainMQError): pass
-class NoSchemaError(TwainSchemaError): pass
 
 MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
 MAX_MESSAGE_SIZE = 4096
@@ -40,15 +32,7 @@ VALID_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
 
 REBAL_LENGTH = timedelta(seconds = 10)
 
-## Anything in the range \x80 to \xBF ought to be safe to use as sentinal magic bytes
-_MULTIPART_START = b"\x80"
-_MULTIPART_CONTINUE = b"\x81"
-_MULTIPART_END = b"\x82"
-_DATACLASS_MAGIC = b"\x98"
-_GZIP_MAGIC = b"\x99"
-
 ## CONSUMER GROUP MESSAGES
-from dataclasses_jsonschema import JsonSchemaMixin
 
 @dataclass
 class Joined(JsonSchemaMixin):
@@ -313,7 +297,7 @@ class Twain:
             start_from = "start"
         return TwainMQConsumer(self, topic_name, start_from, group)
 
-    def _topic_path(self, topic_name):
+    def _topic_path(self, topic_name: str) -> Path:
         return self.root_dir / topic_name
 
     def topic_exists(self, topic_name):
@@ -332,7 +316,7 @@ class Twain:
         return self._root_dir
 
 class TwainMQBase(ABC):
-    def __init__(self, twain, topic):
+    def __init__(self, twain: Twain, topic: str):
         self._topic = topic
         self._twain = twain
         config_path = self._twain._config_path(topic)
@@ -442,7 +426,7 @@ class TwainMQConsumer(TwainMQBase):
                     gprod.write_message(consumer_id, AbortJoin(key))
                     if retry > 0:
                         time.sleep(random.random() * 0.1)
-                        return self._join_group(group, retry = retry - 1)
+                        return self._join_group(group, start_from, retry = retry - 1)
                     else:
                         return
             else:
@@ -473,6 +457,7 @@ class TwainMQConsumer(TwainMQBase):
 
     def _confirm_rebal(self):
         gprod = self._group_producer
+        assert self._rebal_in_progress is not None
         assignements = self._rebal_in_progress.get_assignments()
         self._partitions = assignements.get(self._consumer_id, [])
         self._consumerlets = {p: self._consumerlets.get(p, TwainMQConsumerlet(self._twain, self._topic, p, offset=self._commit_record.get(p,0))) for p in self._partitions}
@@ -582,7 +567,7 @@ class TwainMQConsumerlet(TwainMQBase):
                 self._offset = offset
                 self._chunk_str = chunk_str
             else:
-                raise TopicCorruptError(f"Multiple message files for the same chunk partition {partition}-{chunk_str}")
+                raise TopicCorruptError(f"Multiple message files for the same chunk partition {self._partition}-{chunk_str}")
         elif offset >= 0:
             offsets_files_chunks = sorted([(int(f.stem.split("_")[1]), f, f.stem.split("_")[0].split("-")[1]) for f in part_files])
                         
@@ -651,8 +636,9 @@ class TwainMQProducer(TwainMQBase):
 
     def encode_message(self, message):
         if is_dataclass(message):
+            assert not isinstance(message, type)
             json_str = json.dumps(asdict(message), separators=(",", ":"))
-            cls_name = getattr(message.__class__, "__message_type__", message.__class__.__name__)
+            cls_name = getattr(type(message), "__message_type__", type(message).__name__)
             cls_id = self._message_types[cls_name].to_bytes(2, "big", signed = False)
             payload = _DATACLASS_MAGIC + cls_id + json_str.encode("utf-8")
         elif isinstance(message, bytes):
@@ -714,73 +700,6 @@ class TwainMQProducer(TwainMQBase):
     def close(self):
         pass
 
-def encode_datetime(dt):
-    """Return 10 byte encoded date string"""
-    ts = dt.timestamp()
-    return base64.b85encode(struct.pack("!d", ts)).decode("utf-8")
-
-def decode_datetime(s):
-    ts = struct.unpack("!d", base64.b85decode(s.encode("utf-8")))[0]
-    return datetime.fromtimestamp(ts)
-
-def dataclass_from_dict(cls, data):
-    kwargs = {}
-    for f in fields(cls):
-        value = data[f.name]
-        if is_dataclass(f.type):
-            value = dataclass_from_dict(f.type, value)
-        kwargs[f.name] = value
-    return cls(**kwargs)
-
-def key_to_base85(k, width: int) -> str:
-    """
-    Encode the key as a base85 string
-    """
-    if width < 0:
-        b = k.encode("utf-8")
-        if len(b) > -width:
-            raise InvalidMessageKeyError(f"Key {k} too long for {-width} byte string")
-        b = b.ljust(-width, b"\0")
-    elif width > 0:
-        try:
-            b = k.to_bytes(width, byteorder="big", signed=False)
-        except OverflowError:
-            raise InvalidMessageKeyError(f"Integer key too large for {width} bytes")
-    else:
-        raise NotImplementedError("Zero width keys not yet supported")
-    encoded = base64.b85encode(b)
-    return encoded.decode("ascii")
-
-def base85_to_key(s: str, width: int) -> int:
-    """
-    Decode a Base85 string back into an key.
-    """
-    b = base64.b85decode(s.encode("ascii"))
-    if width < 0:
-        return b.rstrip(b"\0").decode("utf-8")
-    elif width > 0:
-        return int.from_bytes(b, byteorder="big", signed=False)
-    else:
-        raise NotImplementedError("Zero width keys not yet supported")
-
-def find_key_char_width(width) -> int:
-    """Find the width of the key when encoded"""
-    if width > 0:
-        return len(key_to_base85(1, width = width))
-    elif width < 0:
-        return len(key_to_base85("a", width = width))
-    else:
-        raise NotImplementedError("Zero width keys not yet supported")
-
-def partition_hash64(x, partitions) -> int:
-    """Using splitmix64 to convert the key into a partition number for even mixing."""
-    if isinstance(x, str):
-        x = int.from_bytes(x.encode("utf-8"), signed = False)
-    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9
-    x = (x ^ (x >> 27)) * 0x94d049bb133111eb
-    x = x ^ (x >> 31)
-    return x % partitions
-
 def multi_poll(consumers, offset=None):
     """Helper function to poll evenly from multiple consumers.  This is useful because with TwainMQ a consumer can only subscribe to one topic, 
     so when you need to consume from multiple topics you need multiple consumers.
@@ -798,7 +717,7 @@ def multi_poll(consumers, offset=None):
         msg = consumer_to_poll.poll()
         if msg is not None:
             return ((c_offset + offset + 1) % n, msg)
-    
+
 class TestBase85Encoding(unittest.TestCase):
     def test_round_trip_small_numbers(self):
         for n in [0, 1, 42, 255, 256, 12345]:
