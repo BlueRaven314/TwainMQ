@@ -618,6 +618,8 @@ class TwainMQConsumerlet(TwainMQBase):
             else:
                 self._seek_active_file(self._offset)
                 msg_line = self._current_file_handle.readline()[:-1]
+                if msg_line == "":
+                    return None
         key = base85_to_key(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
         message = self.decode_message(msg_line[self._key_chars+10:])
