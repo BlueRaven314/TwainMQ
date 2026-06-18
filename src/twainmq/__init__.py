@@ -21,3 +21,4 @@ str
 """
 
 from .twain_core import Twain, TwainMQConsumer, TwainMQProducer
+from .utils import multi_poll
