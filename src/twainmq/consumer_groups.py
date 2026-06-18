@@ -3,7 +3,7 @@ from datetime import timedelta
 from dataclasses_jsonschema import JsonSchemaMixin
 
 from .errors import InvalidGroupNameError
-from .twain_core import _is_safe
+from .core import _is_safe
 
 
 REBAL_LENGTH = timedelta(seconds = 60)

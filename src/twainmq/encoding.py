@@ -7,12 +7,11 @@ import struct
 
 from .errors import InvalidMessageKeyError
 
-
-_MULTIPART_START = b"\x80"
-_MULTIPART_CONTINUE = b"\x81"
-_MULTIPART_END = b"\x82"
-_DATACLASS_MAGIC = b"\x98"
-_GZIP_MAGIC = b"\x99"
+_MULTIPART_START    = b"\xF8"
+_MULTIPART_CONTINUE = b"\xF9"
+_MULTIPART_END      = b"\xFA"
+_DATACLASS_MAGIC    = b"\xFB"
+_GZIP_MAGIC         = b"\xFC"
 
 def encode_datetime(dt):
     """Return 10 byte encoded date string"""

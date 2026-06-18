@@ -10,7 +10,6 @@ from twainmq.atomic_append import atomic_append
 TEST_FILE = Path("atomic_test.log")
 NUM_PROCESSES = max(4, cpu_count())
 MESSAGES_PER_PROCESS = 2000
-MAX_MESSAGE_SIZE = 2048
 
 def random_message(pid, i):
     body = ''.join(random.choices(string.ascii_letters + string.digits, k=5000))
