@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from dataclasses_jsonschema import JsonSchemaMixin
 
+from .encoding import _is_safe
 from .errors import InvalidGroupNameError
-from .core import _is_safe
 
 
 REBAL_LENGTH = timedelta(seconds = 60)

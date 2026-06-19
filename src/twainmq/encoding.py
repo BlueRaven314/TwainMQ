@@ -3,6 +3,7 @@
 import base64
 from dataclasses import fields, is_dataclass
 from datetime import datetime
+import re
 import struct
 
 from .errors import InvalidMessageKeyError
@@ -12,6 +13,11 @@ _MULTIPART_CONTINUE = b"\xF9"
 _MULTIPART_END      = b"\xFA"
 _DATACLASS_MAGIC    = b"\xFB"
 _GZIP_MAGIC         = b"\xFC"
+
+VALID_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
+
+def _is_safe(name: str) -> bool:
+    return bool(VALID_NAME_RE.fullmatch(name))
 
 def encode_datetime(dt):
     """Return 10 byte encoded date string"""
