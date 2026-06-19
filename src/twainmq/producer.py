@@ -3,16 +3,19 @@ import base64
 from dataclasses import asdict, is_dataclass
 from datetime import datetime
 import json
+from typing import TYPE_CHECKING
 import zlib
 
+from .agent_base import TwainMQBase
 from .atomic_append import atomic_append
 from .errors import MessageTooLongError, TopicCorruptError
+from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, MAX_MESSAGE_SIZE, encode_datetime, key_to_base85, partition_hash64
 
-from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, encode_datetime, key_to_base85, partition_hash64
-from .core import MAX_MESSAGE_SIZE, TwainMQBase
-
+if TYPE_CHECKING:
+    from .core import Twain
+    
 class TwainMQProducer(TwainMQBase):
-    def __init__(self, twain, topic, partitioner = None, options = None):
+    def __init__(self, twain: "Twain", topic: str, partitioner = None):
         super().__init__(twain, topic)
         if partitioner is None:
             partitioner = partition_hash64

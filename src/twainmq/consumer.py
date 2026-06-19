@@ -5,14 +5,16 @@ from datetime import datetime, timezone
 import json
 import random
 import time
+from typing import TYPE_CHECKING
 import zlib
 
-from twainmq.encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, base85_to_key, dataclass_from_dict, decode_datetime
-from twainmq.errors import TopicCorruptError
-
+from .agent_base import TwainMQBase
+from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, MessageTuple, base85_to_key, dataclass_from_dict, decode_datetime
+from .errors import TopicCorruptError
 from .consumer_groups import CONSUMER_GROUP_MESSAGE_SET, REBAL_LENGTH, AbortJoin, BeginRebal, Commit, EndRebal, Joined, RebalConfirm, RebalInProgress, RebalOffer, _group_topic_name
-from .core import MessageTuple, Twain, TwainMQBase
 
+if TYPE_CHECKING:
+    from .core import Twain
 
 class TwainMQConsumer(TwainMQBase):
     """A consumer
@@ -24,7 +26,7 @@ class TwainMQConsumer(TwainMQBase):
 
     `start_from` is only used when there is no consumer group, or when no commit has been made in a group.
     """
-    def __init__(self, twain: Twain, topic: str, start_from = "start", group = None):
+    def __init__(self, twain: "Twain", topic: str, start_from = "start", group = None):
         super().__init__(twain, topic)
         self._twain = twain
         self._topic = topic

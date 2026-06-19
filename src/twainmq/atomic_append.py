@@ -4,6 +4,9 @@ import errno
 import ctypes
 from ctypes import wintypes
 from pathlib import Path
+import os
+import errno
+from pathlib import Path
 
 # Win32 constants
 FILE_APPEND_DATA        = 0x0004
@@ -55,11 +58,7 @@ def atomic_append_win(path, data: bytes) -> None:
 
     finally:
         kernel32.CloseHandle(handle)
-
-import os
-import errno
-from pathlib import Path
-
+        
 def atomic_append_posix(path, data: bytes, mode: int = 0o644) -> None:
     """Atomic append function for POSIX systems.
 
@@ -76,8 +75,7 @@ def atomic_append_posix(path, data: bytes, mode: int = 0o644) -> None:
     flags = os.O_WRONLY | os.O_APPEND | os.O_CREAT
 
     # Add close-on-exec if available (good hygiene)
-    if hasattr(os, "O_CLOEXEC"):
-        flags |= os.O_CLOEXEC
+    flags |= getattr(os, "O_CLOEXEC", 0)
 
     fd = os.open(path, flags, mode)
     try:

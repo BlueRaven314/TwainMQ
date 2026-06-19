@@ -1,6 +1,7 @@
 
 ## Anything in the range \x80 to \xBF ought to be safe to use as sentinal magic bytes
 import base64
+from collections import namedtuple
 from dataclasses import fields, is_dataclass
 from datetime import datetime
 import re
@@ -13,6 +14,9 @@ _MULTIPART_CONTINUE = b"\xF9"
 _MULTIPART_END      = b"\xFA"
 _DATACLASS_MAGIC    = b"\xFB"
 _GZIP_MAGIC         = b"\xFC"
+
+MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
+MAX_MESSAGE_SIZE = 4096
 
 VALID_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')
 
