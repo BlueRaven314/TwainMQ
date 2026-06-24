@@ -77,8 +77,8 @@ class Twain:
         
         Args:
             topic_name: The name of the topic
-            key_type:  The key type ("u8", "u16", "u32", "u64", "char1", "char2", "char4", "char8", "char16"), default  = "u16"
-            partitions: The number of partitions to split it into, default = 1          
+            key_type:  The key type ("u8", "u16", "u32", "u64", "char1", "char2", ... "char#"), default  = "u16"
+            partitions: The number of partitions to split it into, default = 1
             message_types: List of message dataclass names, these do not need to be registered at the time create_topic is called.
         """
         
@@ -87,11 +87,6 @@ class Twain:
         u16 = 2,
         u32 = 4,
         u64 = 8,
-        char1 = -1,
-        char2 = -2,
-        char4 = -4,
-        char8 = -8,
-        char16 = -16,                        
         )
 
         if not _is_safe(topic_name):
@@ -101,9 +96,11 @@ class Twain:
             key_type = "u16"
         
         try:
+            if key_type.startswith("char") and key_type[4:].isdigit():
+                key_width = -int(key_type[4:])
             key_width = key_types[key_type]
         except KeyError:
-            raise InvalidKeyTypeError(f"{key_type} is not a valid key_type. Options are {', '.join(key_types.keys())}")
+            raise InvalidKeyTypeError(f"{key_type} is not a valid key_type. Options are {', '.join(key_types.keys())} or charN where N is an integer")
         
         topic_path = self._topic_path(topic_name)
         if topic_path.exists():
