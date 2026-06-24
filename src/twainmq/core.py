@@ -98,7 +98,8 @@ class Twain:
         try:
             if key_type.startswith("char") and key_type[4:].isdigit():
                 key_width = -int(key_type[4:])
-            key_width = key_types[key_type]
+            else:
+                key_width = key_types[key_type]
         except KeyError:
             raise InvalidKeyTypeError(f"{key_type} is not a valid key_type. Options are {', '.join(key_types.keys())} or charN where N is an integer")
         
