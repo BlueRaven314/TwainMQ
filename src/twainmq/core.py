@@ -16,29 +16,37 @@ class Twain:
     """
     The central entry point for interacting with a TwainMQ installation.
 
-    A `Twain` instance represents a single TwainMQ environment rooted at a
-    directory on disk. This directory holds all topics, configuration files,
-    and global state. Typically, you create one `Twain` object per process
-    and reuse it to manage topics, producers, and consumers.
+    A `Twain` instance represents a complete TwainMQ environment rooted at a
+    directory on disk. This directory contains all topics, configuration files,
+    and global metadata. Applications typically create one long-lived `Twain`
+    object and use it to manage topics, producers, consumers, and message
+    registrations.
 
     Parameters
     ----------
     root_dir : str or Path
-        Filesystem path to the TwainMQ root directory. This directory will
-        contain topic data, configuration, and metadata.
+        Filesystem path to the TwainMQ root directory. This directory will hold
+        all topic data, configuration, and state.
+
+    Message Classes
+    ---------------
+    Dataclass-based messages must be registered with the `Twain` instance before
+    they can be produced or consumed. Registration assigns each message type a
+    stable numeric identifier used during encoding. All producers and consumers
+    created from the same `Twain` share this registry.
+
+    In rare cases where different topics require dataclasses with the same
+    message name but different schemas, separate `Twain` instances must be used.
+    (It is strongly recommended to avoid such naming collisions.)
 
     Notes
     -----
-    - The `Twain` object is designed to be long-lived. Create it once and
-      share it across your application rather than instantiating multiple
-      times.
-    - Global configuration parameters (e.g. encoding defaults, safety
-      thresholds) can be set at the `Twain` level and will apply to all
-      producers and consumers created from it.
-    - Message dataclasses are registered with the global twain, and then all consumers
-      have access to these registrations.  In the unusual case where you have conflicting 
-      messages with the same name on different topics, then you will need separate `Twain`
-      instances (although I advise for your general sanity to try avoid doing this to your topics).
+    - A `Twain` object is intended to be long-lived and reused across your
+      application.
+    - Global configuration (e.g. message type registry) is stored at the `Twain`
+      level and applies to all producers and consumers created from it.
+    - Topics created through this instance are immediately available for
+      producing and consuming messages.
 
     Examples
     --------
@@ -50,15 +58,15 @@ class Twain:
 
     >>> tmq.create_topic("hello_world", "u16")
 
-    Create a producer for that topic and write a message:
+    Produce a message:
 
     >>> producer = tmq.producer("hello_world")
-    >>> producer.write_message(42)
+    >>> producer.write_message(42, "Hello!")
 
-    Create a consumer to read messages:
+    Consume messages:
 
     >>> consumer = tmq.consumer("hello_world")
-    >>> msg = consumer.read_message()
+    >>> msg = consumer.poll()
     """
     def __init__(self, root_dir):
         self._root_dir = Path(root_dir)
@@ -67,21 +75,57 @@ class Twain:
             self.register_msg_cls(m)
 
     def register_msg_cls(self, message_cls):
+        """
+        Register a dataclass message type for use with this Twain instance.
+
+        Dataclass messages must be registered before they can be produced or
+        consumed. Registration assigns the class a stable numeric identifier used
+        during encoding and decoding.
+
+        Parameters
+        ----------
+        message_cls : type
+            A dataclass defining a message schema. The class name (or its
+            `__message_type__` attribute, if present) is used as the message type
+            identifier.
+
+        Raises
+        ------
+        KeyError
+            If a message class with the same name is already registered.
+        """
         name = getattr(message_cls, "__message_type__", message_cls.__name__)
         if name in self._msg_cls_registry:
             raise KeyError(f"Class already registered: {name}")
         self._msg_cls_registry[name] = message_cls
 
     def create_topic(self, topic_name, key_type=None, partitions=1, message_types=None):
-        """Create a new topic
-        
-        Args:
-            topic_name: The name of the topic
-            key_type:  The key type ("u8", "u16", "u32", "u64", "char1", "char2", ... "char#"), default  = "u16"
-            partitions: The number of partitions to split it into, default = 1
-            message_types: List of message dataclass names, these do not need to be registered at the time create_topic is called.
         """
-        
+        Create a new topic in this TwainMQ instance.
+
+        Parameters
+        ----------
+        topic_name : str
+            Name of the topic. Must contain only safe characters.
+        key_type : str, optional
+            Key encoding type. Defaults to `"u16"`. Supported values are `"u8"`,
+            `"u16"`, `"u32"`, `"u64"`, or `"charN"` where `N` is the number of
+            characters.
+        partitions : int, optional
+            Number of partitions for the topic. Defaults to 1.
+        message_types : list of str, optional
+            Names of dataclass message types used by this topic. These do not need
+            to be registered yet; they are recorded in the topic configuration.
+
+        Raises
+        ------
+        InvalidTopicNameError
+            If the topic name contains invalid characters.
+        InvalidKeyTypeError
+            If `key_type` is not recognised.
+        ValueError
+            If the topic already exists.
+        """
         key_types = dict(
         u8 = 1,
         u16 = 2,
@@ -122,6 +166,22 @@ class Twain:
             json.dump(config, f, indent = 0)
 
     def delete_topic(self, topic_name):
+        """
+        Delete a topic and all of its data.
+
+        This operation is irreversible. A confirmation prompt is shown to prevent
+        accidental deletion.
+
+        Parameters
+        ----------
+        topic_name : str
+            The name of the topic to delete.
+
+        Returns
+        -------
+        None or TopicDeleteError
+            Returns an error object if the user fails the confirmation prompt.
+        """
         challenge_digit = random.randint(0, 9)
         confirm = input(f"To confirm delete of topic {topic_name} in {self.root_dir}, type YES{challenge_digit}")
         if confirm == f"YES{challenge_digit}":
@@ -131,9 +191,41 @@ class Twain:
             return TopicDeleteError("User confirm failed, topic not deleted")
 
     def producer(self, topic_name):
+        """
+        Create a producer for the given topic.
+
+        Parameters
+        ----------
+        topic_name : str
+            The topic to produce messages to.
+
+        Returns
+        -------
+        TwainMQProducer
+            A producer bound to the specified topic.
+        """
         return TwainMQProducer(self, topic_name)
 
     def consumer(self, topic_name, start_from=None, group=None):
+        """
+        Create a consumer for the given topic.
+
+        Parameters
+        ----------
+        topic_name : str
+            The topic to consume from.
+        start_from : {"start", "now"}, optional
+            Initial read position when no committed offset exists. Defaults to
+            `"start"`.
+        group : str or None, optional
+            Consumer-group identifier. If provided, the consumer joins the group and
+            participates in consensus-based partition assignment and commits.
+
+        Returns
+        -------
+        TwainMQConsumer
+            A consumer bound to the specified topic.
+        """
         if start_from is None:
             start_from = "start"
         return TwainMQConsumer(self, topic_name, start_from, group)
@@ -142,11 +234,29 @@ class Twain:
         return self.root_dir / topic_name
 
     def topic_exists(self, topic_name):
-        """Checks if a topic exists"""
+        """
+        Check whether a topic exists in this TwainMQ instance.
+
+        Parameters
+        ----------
+        topic_name : str
+
+        Returns
+        -------
+        bool
+            True if the topic exists, False otherwise.
+        """
         return self._topic_path(topic_name).exists()
 
     def list_topics(self):
-        """Returns a list of all the topics in this TwainMQ instance"""
+        """
+        List all topics in this TwainMQ instance.
+
+        Returns
+        -------
+        list of str
+            Names of all topics, excluding internal consumer‑group directories.
+        """
         return [t.stem for t in self.root_dir.iterdir() if not t.name.startswith("--group--") if t.name.endswith(".twc")]
 
     def _config_path(self, topic_name):

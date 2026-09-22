@@ -13,9 +13,30 @@ from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, MAX_MESSAGE_SIZE, encode_da
 
 if TYPE_CHECKING:
     from .core import Twain
-    
+
 class TwainMQProducer(TwainMQBase):
-    def __init__(self, twain: "Twain", topic: str, partitioner = None):
+    """
+    A producer for writing messages to a TwainMQ topic.
+
+    Producers assign messages to partitions using a configurable partitioner and
+    append them atomically to the topic's storage. Messages may be strings,
+    bytes, or registered dataclass instances. Producers are lightweight and may
+    be used directly or as context managers to ensure clean shutdown.
+    """
+    def __init__(self, twain: "Twain", topic: str, partitioner = None): 
+        """
+        Create a producer for a given topic.
+
+        Parameters
+        ----------
+        twain : Twain
+            The TwainMQ instance backing this producer.
+        topic : str
+            The topic to write messages to.
+        partitioner : callable, optional
+            A function mapping `(key, n_partitions)` to a partition index.
+            If omitted, a stable 64-bit hash partitioner is used.
+        """
         super().__init__(twain, topic)
         if partitioner is None:
             partitioner = partition_hash64
@@ -42,6 +63,32 @@ class TwainMQProducer(TwainMQBase):
         return base64.b85encode(compressed).decode("utf-8")
         
     def write_message(self, key, message):
+        """
+        Write a message to the topic, assigning it to a partition based on the key.
+
+        Messages may be:
+        - `str`: stored as UTF-8 text,
+        - `bytes`: stored as raw binary,
+        - dataclass instances: encoded as JSON. Dataclasses must be registered with
+        the Twain instance via `register_msg_cls()` before use.
+
+        The key determines the target partition and the type is set on topic creating.
+
+        The message is appended atomically to the selected partition file.
+
+        Parameters
+        ----------
+        key : any
+            Value used to select the partition. Must be compatible with the
+            topic.
+        message : str, bytes, or dataclass
+            The message payload to write.
+
+        Raises
+        ------
+        MessageTooLongError
+            If the encoded message exceeds `MAX_MESSAGE_SIZE`.
+        """
         encoded_key = key_to_base85(key, self.key_width)
         partition = self._partitioner(key, self._n_partitions)
         timestamp = encode_datetime(datetime.now())
