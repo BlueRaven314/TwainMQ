@@ -17,16 +17,38 @@ if TYPE_CHECKING:
     from .core import Twain
 
 class TwainMQConsumer(TwainMQBase):
-    """A consumer
-    
-    A consumer does not need to be part of a consumer group, but if it is not, then it will not be able to commit.
+    """
+    A TwainMQ consumer.
 
-    If a consumer is part of a group (even a group of one) then it can commit to record where it got to and then a consumer (re-)joining that group will pick up
-    from where it left off
+    Consumers may operate independently or as part of a consumer group. A
+    standalone consumer can read messages but cannot commit progress. A consumer
+    that belongs to a group (even a group of one) can commit offsets, allowing
+    any consumer joining that group to resume from the last committed position.
 
-    `start_from` is only used when there is no consumer group, or when no commit has been made in a group.
+    The `start_from` parameter controls the initial read position only when:
+    - the consumer is not part of a group, or
+    - the group has no existing commit record.
     """
     def __init__(self, twain: "Twain", topic: str, start_from = "start", group = None):
+        """
+        Create a consumer for a given topic.
+
+        Parameters
+        ----------
+        twain : Twain
+            The TwainMQ instance backing this consumer.
+        topic : str
+            The topic to consume from.
+        start_from : {"start", "now"}, optional
+            Initial read position when no committed offset exists. `"start"`
+            begins at offset 0; `"now"` begins at the current end of each
+            partition.
+        group : str or None, optional
+            The consumer-group identifier. If `None`, the consumer operates
+            independently and cannot commit offsets. If provided, the consumer
+            joins the group and participates in consensus-based partition
+            assignment and offset commits.
+        """
         super().__init__(twain, topic)
         self._twain = twain
         self._topic = topic
@@ -101,10 +123,16 @@ class TwainMQConsumer(TwainMQBase):
                 self._process_group_msg(msg)
     
     def trigger_rebal(self):
-        """Triggers a rebalance in the consumer group.  This is cheap and safe and should be done periodically to confirm that all the consumers
-        in the group are still operating as they should.
-        
-        If everybody responds the rebalance is a null op and will always leave the partition assignments unchanged.
+        """
+        Initiate a consumer-group rebalance.
+
+        In TwainMQ, consumer-group membership is maintained through periodic
+        consensus. Triggering a rebalance is lightweight and safe, and is typically
+        done periodically to confirm that all consumers in the group are still
+        active.
+
+        If all consumers respond within the rebalance window, the rebalance becomes
+        a no-op and existing partition assignments remain unchanged.
         """
         self._begin_rebal()
 
@@ -162,8 +190,17 @@ class TwainMQConsumer(TwainMQBase):
             pass
 
     def heartbeat(self):
-        """Must be called periodically if using a consumer group otherwise you might leave the consumer group.
-        Calling `poll` will call heartbeat first"""
+        """
+        Maintain membership in a consumer group and process group-management events.
+
+        This method must be called periodically when using consumer groups; otherwise
+        the consumer may be considered inactive and be removed from the group.
+
+        Behaviour
+        ---------
+        - Processes any pending group-management messages (rebalance events, etc.).
+        - Automatically invoked at the start of `poll()`.
+        """
         if self._group is not None:
             while msg := self._group_consumer.poll():
                 self._process_group_msg(msg)
@@ -171,6 +208,18 @@ class TwainMQConsumer(TwainMQBase):
                 self._end_rebal()
         
     def poll(self):
+        """
+        Poll partitions in round-robin order and return the next available message.
+
+        The consumer maintains a list of assigned partitions. Each call polls them
+        starting from the partition after the one last successfully polled. The first
+        non-`None` message returned by a partition is yielded.
+
+        Returns
+        -------
+        message or None
+            The next available message, or `None` if all partitions return no data.
+        """
         self.heartbeat()
         n = len(self._partitions)
         for p_offset in range(n):
@@ -182,7 +231,22 @@ class TwainMQConsumer(TwainMQBase):
                 return msg
     
     def poll_many(self, n=10):
-        """Simply calls the poll method n times and returns the results as a list."""
+        """
+        Poll up to `n` messages and return them as a list.
+
+        This is a convenience wrapper around `poll()`. Polling stops early if
+        `poll()` returns `None`.
+
+        Parameters
+        ----------
+        n : int, optional
+            Maximum number of messages to retrieve.
+
+        Returns
+        -------
+        list
+            A list of messages, possibly shorter than `n`.
+        """
         msgs = []
         for i in range(n):
             msg = self.poll()

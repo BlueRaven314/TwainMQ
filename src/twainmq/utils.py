@@ -1,16 +1,36 @@
 
 import random
 
-
 def multi_poll(consumers, offset=None):
-    """Helper function to poll evenly from multiple consumers.  This is useful because with TwainMQ a consumer can only subscribe to one topic, 
-    so when you need to consume from multiple topics you need multiple consumers.
-    
-    Provide a list of consumers, and an optional offset, and this will poll the consumers in turn until one returns a message.  It will return the index
-    of the consumer that returned the message.  The offset passed in will always be the index of last consumer to be called.  If you store the index from the previous
-    call and pass it back in as the offset you will get a round robin calling sequence. 
-    
-    If offset is not specified (or set to None) then a random offset is chosen, which means that topics will be polled in a random order each time it is called."""
+    """
+    Poll multiple TwainMQ consumers in a fair, round-robin sequence.
+
+    TwainMQ consumers can only subscribe to a single topic, so applications that
+    need to consume from multiple topics typically create multiple consumer
+    objects. `multi_poll` provides a simple way to poll them evenly.
+
+    Parameters
+    ----------
+    consumers : list
+        A list of consumer objects, each exposing a `.poll()` method.
+    offset : int or None, optional
+        The index of the last consumer that was polled. If provided, polling
+        resumes from the next consumer in round-robin order. If `None`, a random
+        starting offset is chosen.
+
+    Returns
+    -------
+    (int, message) or None
+        Returns a tuple `(index, msg)` where `index` is the consumer that
+        produced a message and `msg` is the message itself. Returns `None` if no
+        consumer produced a message.
+
+    Notes
+    -----
+    - To achieve continuous round-robin behaviour, store the returned index and
+      pass it back as `offset` on the next call.
+    - Only the first consumer that returns a non-`None` message is reported.
+    """
     n = len(consumers)
     if offset is None:
         offset = random.randrange(n)    
