@@ -18,4 +18,5 @@ nav:
       - Overview: tutorials/index.md
   - Architecture:
       - Overview: architecture/index.md
+      - Message Keys: architecture/message_keys.md      
   - API Reference: api/reference.md

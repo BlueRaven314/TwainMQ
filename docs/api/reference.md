@@ -1,3 +1,5 @@
 # API Reference
 
-::: twainmq
+::: twainmq.twain
+::: twainmq.producer
+::: twainmq.consumer
