@@ -16,7 +16,8 @@ OPEN_ALWAYS             = 4
 FILE_ATTRIBUTE_NORMAL   = 0x80
 INVALID_HANDLE_VALUE    = wintypes.HANDLE(-1).value
 
-kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+if os.name == "nt":
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
 def atomic_append_win(path, data: bytes) -> None:
     """Atomic appending to a file under Windows.
