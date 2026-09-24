@@ -1,6 +1,8 @@
 site_name: TwainMQ
 theme:
   name: material
+  logo: TwainLogoTransparent.png
+  favicon: TwainLogoTransparent.png
 
 plugins:
   - search

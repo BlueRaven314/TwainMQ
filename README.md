@@ -1,4 +1,8 @@
-# TwainMQ
+<p align="center">
+  <img src="docs/TwainLogoTransparent.png" alt="TwainMQ Logo" width="200">
+</p>
+
+<h1 align="center">TwainMQ</h1>
 
 **TwainMQ** is a lightweight, file‑based message log inspired by Kafka’s design principles but without the operational overhead of running a broker or cluster. It provides durable, append‑only topics, partitioned message streams, consumer groups with load balancing, and offset managemen, all without using a central service or broker.
 
