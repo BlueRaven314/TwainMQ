@@ -215,6 +215,8 @@ class TwainMQConsumer(TwainMQBase):
         starting from the partition after the one last successfully polled. The first
         non-`None` message returned by a partition is yielded.
 
+        This call does not block.
+
         Returns
         -------
         message or None

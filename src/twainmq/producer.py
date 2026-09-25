@@ -1,7 +1,7 @@
 
 import base64
 from dataclasses import asdict, is_dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 from typing import TYPE_CHECKING
 import zlib
@@ -91,7 +91,7 @@ class TwainMQProducer(TwainMQBase):
         """
         encoded_key = key_to_base85(key, self.key_width)
         partition = self._partitioner(key, self._n_partitions)
-        timestamp = encode_datetime(datetime.now())
+        timestamp = encode_datetime(datetime.now(timezone.utc))
         msg_blob = self.encode_message(message)
         binary_msg = f"{encoded_key}{timestamp}{msg_blob}\n".encode("utf-8")
         if len(binary_msg) > MAX_MESSAGE_SIZE:

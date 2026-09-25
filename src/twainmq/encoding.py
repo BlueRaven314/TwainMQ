@@ -3,7 +3,7 @@
 import base64
 from collections import namedtuple
 from dataclasses import fields, is_dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import re
 import struct
 
@@ -25,7 +25,7 @@ def _is_safe(name: str) -> bool:
 
 def encode_datetime(dt):
     """Return 10 byte encoded date string"""
-    ts = dt.timestamp()
+    ts = dt.astimezone(timezone.utc).timestamp()
     return base64.b85encode(struct.pack("!d", ts)).decode("utf-8")
 
 def decode_datetime(s):

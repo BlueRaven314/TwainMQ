@@ -69,11 +69,11 @@ while message := consumer.poll():
 
 TwainMQ relies on being able to perform atomic writes, and so it might not be compatible with all file systems.  Over time I hope to test and add support for more file systems.  This is the current status:
 
- - **NTFS** - supported, well tested, efficient
- - **XFS** - supported, tested, efficient
- - **ext4** - supported, untested, expected to work
+ - **NTFS** - supported end extensively tested
+ - **XFS** - supported and tested
+ - **ext4** - supported and tested
  - **BeeGFS** - supported, but some performance issues (hopefully being resolved soon)
- - **Other POSIX** - generally supported, but with variable performance outcomes
+ - **Other POSIX** - generally supported but not tested
  - **S3** - not supported
 
 ## Documentation
