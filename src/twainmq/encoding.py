@@ -60,7 +60,7 @@ def encode_datetime(dt):
 
 def decode_datetime(s):
     ts = struct.unpack("!d", base64.b85decode(s.encode("utf-8")))[0]
-    return datetime.fromtimestamp(ts)
+    return datetime.fromtimestamp(ts, tz=timezone.utc)
 
 def dataclass_from_dict(cls, data):
     kwargs = {}
