@@ -2,10 +2,11 @@
 ## Anything in the range \x80 to \xBF ought to be safe to use as sentinal magic bytes
 import base64
 from collections import namedtuple
-from dataclasses import fields, is_dataclass
+from dataclasses import fields, is_dataclass, dataclass
 from datetime import datetime, timezone
 import re
 import struct
+from typing import Any
 
 from .errors import InvalidMessageKeyError
 
@@ -15,7 +16,36 @@ _MULTIPART_END      = b"\xFA"
 _DATACLASS_MAGIC    = b"\xFB"
 _GZIP_MAGIC         = b"\xFC"
 
-MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
+#MessageTuple = namedtuple("MessageTuple", ["offset", "key", "timestamp", "message"])
+
+@dataclass(slots=True, frozen=True)
+class Message:
+    """
+    A single message returned by a TwainMQ consumer.
+
+    A `Message` instance represents an immutable record read from a topic
+    partition. It contains the decoded payload together with the metadata
+    required to identify the message's position in the log.
+
+    Parameters
+    ----------
+    offset : int
+        The zero-based offset of the message within its partition. Offsets
+        increase monotonically and uniquely identify each message.
+    key : Any
+        The key associated with the message.  The key type is defined by the topic.
+    timestamp : datetime
+        The timestamp assigned to the message at production time. This is a
+        UTC `datetime` indicating when the message was appended.
+    message : Any
+        The decoded message payload. This may be a `str`, `bytes`, or a
+        registered dataclass instance, depending on the original message type.
+    """
+    offset: int
+    key: Any
+    timestamp: datetime
+    message: Any
+
 MAX_MESSAGE_SIZE = 4096
 
 VALID_NAME_RE = re.compile(r'^[A-Za-z0-9_.-]+$')

@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 import zlib
 
 from .agent_base import TwainMQBase
-from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, MessageTuple, base85_to_key, dataclass_from_dict, decode_datetime
+from .encoding import _DATACLASS_MAGIC, _GZIP_MAGIC, Message, base85_to_key, dataclass_from_dict, decode_datetime
 from .errors import TopicCorruptError
 from .consumer_groups import CONSUMER_GROUP_MESSAGE_SET, REBAL_LENGTH, AbortJoin, BeginRebal, Commit, EndRebal, Joined, RebalConfirm, RebalInProgress, RebalOffer, _group_topic_name
 
@@ -342,7 +342,7 @@ class TwainMQConsumerlet(TwainMQBase):
         key = base85_to_key(msg_line[:self._key_chars], self._key_width)
         timestamp = decode_datetime(msg_line[self._key_chars:self._key_chars+10])
         message = self.decode_message(msg_line[self._key_chars+10:])
-        msg_tuple = MessageTuple(
+        msg_tuple = Message(
             offset=self._offset,
             key=key,
             timestamp=timestamp,
