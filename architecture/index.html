@@ -1,0 +1,958 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../tutorials/">
+      
+      
+        <link rel="next" href="message_keys/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../TwainLogoTransparent.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Overview - TwainMQ</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#architecture" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="TwainMQ" class="md-header__button md-logo" aria-label="TwainMQ" data-md-component="logo">
+      
+  <img src="../TwainLogoTransparent.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TwainMQ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="TwainMQ" class="md-nav__button md-logo" aria-label="TwainMQ" data-md-component="logo">
+      
+  <img src="../TwainLogoTransparent.png" alt="logo">
+
+    </a>
+    TwainMQ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../tutorials/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Concepts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#partitioning-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partitioning Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumers-and-offset-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumers and Offset Tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumer-groups-and-coordination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumer Groups and Coordination
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commits-and-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commits and Resume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="message_keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#core-concepts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Core Concepts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#storage-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Storage Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Format
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#partitioning-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Partitioning Model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumers-and-offset-tracking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumers and Offset Tracking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#consumer-groups-and-coordination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Consumer Groups and Coordination
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#commits-and-resume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Commits and Resume
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#message-lifecycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Message Lifecycle
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#summary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Summary
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="architecture">Architecture</h1>
+<p>TwainMQ is a lightweight, broker‑free message log built entirely on top of the filesystem.<br />
+This section explains the internal design: how data is stored, how partitions work, how
+consumer groups coordinate, and how messages move through the system.</p>
+<p>TwainMQ’s architecture is intentionally simple. Everything is a file, every operation is
+atomic, and all coordination happens through append‑only logs.</p>
+<hr />
+<h2 id="core-concepts">Core Concepts</h2>
+<p>TwainMQ is built around a few core ideas:</p>
+<ul>
+<li><strong>Append‑only logs</strong> as the fundamental storage primitive  </li>
+<li><strong>Partitions</strong> for parallelism and ordering guarantees  </li>
+<li><strong>Consensus‑based consumer groups</strong> without a central broker  </li>
+<li><strong>Atomic file operations</strong> for durability  </li>
+<li><strong>Typed messages</strong> encoded compactly and consistently  </li>
+</ul>
+<p>These concepts mirror the design of distributed log systems like Kafka, but implemented
+locally and without background services.</p>
+<hr />
+<h2 id="storage-layout">Storage Layout</h2>
+<p>Each topic is stored as a directory inside the TwainMQ root along with a matching .twc file that defines the topic.  A topic directory contains the log files, one for each partition per day.</p>
+<p>Partition files are append‑only. TwainMQ never rewrites or truncates them.</p>
+<hr />
+<h2 id="message-format">Message Format</h2>
+<p>Every message written to a partition is encoded into a compact, self‑contained blob:</p>
+<ul>
+<li>fixed‑width key (integer or fixed‑width string)</li>
+<li>timestamp</li>
+<li>encoded payload (string, bytes, or dataclass)</li>
+<li>newline terminator</li>
+</ul>
+<p>The payload is compressed and base85‑encoded. A magic byte at the start of the payload indicates the payload type if it isn't utf-8.
+Dataclass messages include a small additional type identifier so consumers can decode them automatically.</p>
+<p>Messages are appended using an atomic write operation to ensure durability even if the process crashes mid‑write.  The write logic is adapted
+for each supported file system to ensure this behaviour.</p>
+<hr />
+<h2 id="partitioning-model">Partitioning Model</h2>
+<p>TwainMQ uses <strong>key‑based partitioning</strong>. The partitioner maps:</p>
+<pre><code>(key, number_of_partitions) → partition_index
+</code></pre>
+<p>By default, a stable 64‑bit hash is used. Keys may be:</p>
+<ul>
+<li>integers  </li>
+<li>fixed‑width strings (<code>charN</code> topics)</li>
+</ul>
+<p>The standard partitioner provides these guarantees:</p>
+<ul>
+<li>messages with the same key always go to the same partition  </li>
+<li>ordering is preserved within each partition  </li>
+<li>partitions can be processed independently and in parallel  </li>
+</ul>
+<hr />
+<h2 id="consumers-and-offset-tracking">Consumers and Offset Tracking</h2>
+<p>A consumer reads messages from the partitions it owns. Each consumer maintains:</p>
+<ul>
+<li>a list of assigned partitions</li>
+<li>an offset for each partition</li>
+<li>a record of the last successfully polled partition (for round‑robin fairness)</li>
+</ul>
+<p>Offsets are stored locally in memory and committed to the consumer group when using
+group mode.</p>
+<p>Polling is round‑robin:</p>
+<ul>
+<li>the consumer rotates through its partitions  </li>
+<li>each call returns the next available message  </li>
+<li>no partition can starve another  </li>
+</ul>
+<p>This behaviour differs from Kafka, where a single partition may dominate consumption if
+it has a backlog.</p>
+<hr />
+<h2 id="consumer-groups-and-coordination">Consumer Groups and Coordination</h2>
+<p>TwainMQ implements consumer groups without a broker. Coordination happens through a
+special <strong>group log</strong> stored in:</p>
+<pre><code>--group--&lt;group-name&gt;/
+</code></pre>
+<p>Consumers periodically send heartbeat messages and rebalance requests into this log.</p>
+<p>A rebalance works like this:</p>
+<ol>
+<li>A consumer triggers a rebalance (cheap and safe).  </li>
+<li>All consumers write a “still alive” message.</li>
+<li>After the rebalance window ends, the group agrees on which consumers are active.</li>
+<li>Partitions are assigned so each is owned by exactly one consumer.</li>
+<li>Consumers update their local state and continue polling.</li>
+</ol>
+<p>Rebalances never pause consumption. Paritions are assigned with priority to the existing owner
+to minimise the number of "moves" that are made.  If all consumers respond, the rebalance is a no‑op.</p>
+<p>This model provides Kafka‑like semantics without a central coordinator.</p>
+<hr />
+<h2 id="commits-and-resume">Commits and Resume</h2>
+<p>Consumers in a group can commit their offsets. A commit records:</p>
+<ul>
+<li>the partition</li>
+<li>the offset</li>
+<li>the consumer ID</li>
+<li>a timestamp</li>
+</ul>
+<p>When a consumer joins a group, it resumes from the last committed offset for each
+partition it is assigned.</p>
+<p>Standalone consumers (not in a group) cannot commit, but they can still read from the
+beginning or from “now”.</p>
+<hr />
+<h2 id="message-lifecycle">Message Lifecycle</h2>
+<p>A message moves through TwainMQ in five steps:</p>
+<ol>
+<li>
+<p><strong>Producer writes</strong>
+   The message is encoded, partitioned, and appended atomically.</p>
+</li>
+<li>
+<p><strong>Stored on disk</strong><br />
+   The message sits in an append‑only partition file.</p>
+</li>
+<li>
+<p><strong>Consumer polls</strong> 
+   The consumer reads the next message from its assigned partitions.</p>
+</li>
+<li>
+<p><strong>Consumer processes</strong>
+   The application handles the message payload.</p>
+</li>
+<li>
+<p><strong>Commit (optional)</strong> 
+   If in a group, the consumer records its progress so others can resume.</p>
+</li>
+</ol>
+<p>This lifecycle is intentionally minimal. TwainMQ does not delete, compact, or reorder
+messages. What you write is what you read.</p>
+<p>(Compaction and deletion/archive is a planned features for the future)</p>
+<hr />
+<h2 id="summary">Summary</h2>
+<p>TwainMQ’s architecture is built on:</p>
+<ul>
+<li>simple, durable file operations  </li>
+<li>predictable partitioning  </li>
+<li>lightweight consumer‑group consensus  </li>
+<li>minimal moving parts  </li>
+</ul>
+<p>The result is a message log that is easy to understand, easy to debug, and easy to embed
+in small systems — while still offering many of the semantics of larger distributed
+brokers.</p>
+<p>Explore the rest of the architecture section for deeper details on:</p>
+<ul>
+<li><strong>Message Keys</strong>  </li>
+<li><strong>Consumer Group Internals</strong>  </li>
+<li><strong>Partitioning Strategies</strong>  </li>
+<li><strong>Encoding and Message Types</strong></li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
