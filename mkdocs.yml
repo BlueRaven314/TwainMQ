@@ -18,6 +18,7 @@ nav:
   - Getting Started: getting-started.md
   - Tutorials:
       - Overview: tutorials/index.md
+      - Logging to TwaimMQ: tutorials/logger.md
   - Architecture:
       - Overview: architecture/index.md
       - Message Keys: architecture/message_keys.md      
