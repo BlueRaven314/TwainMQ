@@ -96,7 +96,10 @@ class Twain:
         """
         name = getattr(message_cls, "__message_type__", message_cls.__name__)
         if name in self._msg_cls_registry:
-            raise KeyError(f"Class already registered: {name}")
+            if message_cls == self._msg_cls_registry[name]:
+                return
+            else:
+                raise KeyError(f"Class already registered: {name}")
         self._msg_cls_registry[name] = message_cls
 
     def create_topic(self, topic_name, key_type=None, partitions=1, message_types=None):
@@ -190,7 +193,7 @@ class Twain:
         else:
             return TopicDeleteError("User confirm failed, topic not deleted")
 
-    def producer(self, topic_name):
+    def producer(self, topic_name: str):
         """
         Create a producer for the given topic.
 
@@ -206,7 +209,7 @@ class Twain:
         """
         return TwainMQProducer(self, topic_name)
 
-    def consumer(self, topic_name, start_from=None, group=None):
+    def consumer(self, topic_name: str, start_from=None, group=None):
         """
         Create a consumer for the given topic.
 
