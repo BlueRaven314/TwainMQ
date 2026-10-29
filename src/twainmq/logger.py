@@ -3,6 +3,8 @@ import traceback
 from typing import TYPE_CHECKING
 from dataclasses import dataclass
 from logging import LogRecord
+from pathlib import Path
+import sys
 
 if TYPE_CHECKING:
     from .core import Twain
@@ -91,10 +93,10 @@ class TwainMQHandler(logging.Handler):
     the specified topic. If the topic does not already exist it will
     be created automatically.
 
-    Messages are keyed using the first 32 characters of the logger name.
-    The complete logger name is preserved in the LogEntry payload.
+    Messages are keyed using the specified key.  If not specified then
+    then `Path(sys.argv[0]).stem[:32]` is used.
     """
-    def __init__(self, twain: "Twain", topic: str, level: int=logging.NOTSET,  partitions: int=4):
+    def __init__(self, twain: "Twain", topic: str, key: str|None=None, level: int=logging.NOTSET,  partitions: int=4):
         """
         Create a TwainMQ-backed logging handler.
 
@@ -119,6 +121,9 @@ class TwainMQHandler(logging.Handler):
         twain.register_msg_cls(LogEntry)
         self.producer = twain.producer(topic)
         self.topic = topic
+        if key is None:
+            key = Path(sys.argv[0]).stem[:32]
+        self.key = key
 
     def emit(self, record: logging.LogRecord) -> None:
         """
@@ -137,7 +142,7 @@ class TwainMQHandler(logging.Handler):
 
             self.producer.write_message(
                 message=entry,
-                key=entry.logger[:32],
+                key=self.key,
             )
 
         except Exception:
