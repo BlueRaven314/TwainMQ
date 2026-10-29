@@ -1,0 +1,956 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../">
+      
+      
+        <link rel="next" href="../../architecture/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../TwainLogoTransparent.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
+    
+    
+      
+        <title>Logging to TwaimMQ - TwainMQ</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    <body dir="ltr">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#distributed-logging-with-twainmq" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="TwainMQ" class="md-header__button md-logo" aria-label="TwainMQ" data-md-component="logo">
+      
+  <img src="../../TwainLogoTransparent.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            TwainMQ
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Logging to TwaimMQ
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="TwainMQ" class="md-nav__button md-logo" aria-label="TwainMQ" data-md-component="logo">
+      
+  <img src="../../TwainLogoTransparent.png" alt="logo">
+
+    </a>
+    TwainMQ
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Tutorials
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Tutorials
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging to TwaimMQ
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Logging to TwaimMQ
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-logging-topic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Logging Topic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-log-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing Log Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-log-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading Log Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-the-formatted-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the Formatted Message
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Architecture
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../architecture/message_keys/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Message Keys
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reference/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#creating-a-logging-topic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Creating a Logging Topic
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#writing-log-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Writing Log Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logging-exceptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Logging Exceptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reading-log-messages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading Log Messages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#using-the-formatted-message" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Using the Formatted Message
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#complete-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="distributed-logging-with-twainmq">Distributed Logging with TwainMQ</h1>
+<p>Python's built-in logging framework is excellent for writing log messages to files and consoles. Sometimes, however, it is useful to treat logs as a stream of structured events that can be consumed by other processes.  For example, if you wish to show log messages in a dashboard, or run automatic monitoring on them detect changes.</p>
+<p>TwainMQ provides a TwainMQHandler class for use with the standard logging module which publishes log records directly to a TwainMQ topic. Each log record is converted into a LogEntry dataclass containing both the original logging metadata and the fully formatted log message.</p>
+<p>This allows logs to be:</p>
+<ul>
+<li>Collected from multiple processes or machines</li>
+<li>Consumed by monitoring tools</li>
+<li>Stored and replayed through TwainMQ</li>
+<li>Processed as structured data rather than plain text</li>
+</ul>
+<h2 id="creating-a-logging-topic">Creating a Logging Topic</h2>
+<p>No manual setup is required.</p>
+<p>When a TwainMQHandler is created it will:</p>
+<ul>
+<li>Create the topic if it does not already exist</li>
+<li>Register the LogEntry message type</li>
+<li>Create a producer for writing log records</li>
+</ul>
+<pre><code class="language-python">import logging
+ 
+from twainmq import Twain
+from twainmq.logger import TwainMQHandler
+ 
+twain = Twain(&quot;./demo&quot;)
+ 
+handler = TwainMQHandler(
+    twain=twain,
+    topic=&quot;logs&quot;,
+)
+ 
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[handler],
+)
+</code></pre>
+<h2 id="writing-log-messages">Writing Log Messages</h2>
+<p>Once configured, any standard Python logger can be used.</p>
+<pre><code class="language-python">import logging
+ 
+logger = logging.getLogger(__name__)
+ 
+logger.info(&quot;Application started&quot;)
+logger.warning(&quot;Configuration file not found&quot;)
+logger.error(&quot;Database connection failed&quot;)
+</code></pre>
+<p>Log messages from all configured loggers will be published to the "logs" topic.</p>
+<h2 id="logging-exceptions">Logging Exceptions</h2>
+<p>Exception information is automatically captured and included in the generated LogEntry.</p>
+<pre><code class="language-python">try:
+    1 / 0
+except ZeroDivisionError:
+    logger.exception(&quot;Unexpected error&quot;)
+</code></pre>
+<p>The resulting LogEntry will contain:</p>
+<ul>
+<li>The logger name</li>
+<li>Severity level</li>
+<li>Source module and line number</li>
+<li>Formatted message</li>
+<li>Full exception traceback</li>
+</ul>
+<h2 id="reading-log-messages">Reading Log Messages</h2>
+<p>Log records are received as LogEntry instances.</p>
+<pre><code class="language-python">from twainmq import Twain
+from twainmq.logger import LogEntry
+ 
+twain = Twain(&quot;./demo&quot;)
+twain.register_msg_cls(LogEntry)
+
+consumer = twain.consumer(&quot;logs&quot;)
+ 
+while msg := consumer.poll():
+    log = msg.message
+ 
+    print(
+        f&quot;[{log.level}] &quot;
+        f&quot;{log.logger}: &quot;
+        f&quot;{log.message}&quot;
+    )
+</code></pre>
+<p>Example output:</p>
+<p>```plain Text
+[INFO] <strong>main</strong>: Application started
+[WARNING] <strong>main</strong>: Configuration file not found
+[ERROR] <strong>main</strong>: Database connection failed</p>
+<pre><code>
+## Accessing Structured Metadata
+
+Because logs are transported as dataclasses rather than text, metadata can be accessed directly.
+
+```python
+while msg := consumer.poll():
+    log = msg.message
+    print(log.timestamp)
+    print(log.logger)
+    print(log.module)
+    print(log.func_name)
+    print(log.line_no)
+</code></pre>
+<p>This makes it easy to build monitoring, analytics, or alerting applications without needing to parse log files.</p>
+<h2 id="using-the-formatted-message">Using the Formatted Message</h2>
+<p>The original formatted output produced by the configured logging formatter is preserved.</p>
+<pre><code class="language-python">formatter = logging.Formatter(
+    &quot;%(asctime)s %(levelname)s %(message)s&quot;
+)
+ 
+handler.setFormatter(formatter)
+</code></pre>
+<p>Consumers can access the resulting string through:</p>
+<pre><code class="language-python">log.formatted
+</code></pre>
+<p>For example:</p>
+<p>```plain Text
+2026-10-27 12:34:56 INFO Application started</p>
+<pre><code>
+## Logger Names and Partitioning
+
+Messages are keyed using the logger name.
+
+For example:
+
+```python
+logging.getLogger(&quot;database&quot;)
+logging.getLogger(&quot;webserver&quot;)
+logging.getLogger(&quot;pricing&quot;)
+</code></pre>
+<p>will produce keys based on:</p>
+<p>```plain Text
+database
+webserver
+pricing</p>
+<pre><code>
+If a logger name exceeds the maximum key width supported by the topic (default: 32 characters), the key is truncated for transport purposes. The complete logger name is always preserved in:
+
+```python
+log.logger
+</code></pre>
+<p>so no information is lost.</p>
+<h2 id="complete-example">Complete Example</h2>
+<p>Producer:</p>
+<pre><code class="language-python">import logging
+ 
+from twainmq import Twain
+from twainmq.logger import TwainMQHandler
+ 
+twain = Twain(&quot;./demo&quot;)
+ 
+handler = TwainMQHandler(
+    twain=twain,
+    topic=&quot;logs&quot;,
+)
+ 
+logging.basicConfig(
+    level=logging.INFO,
+    handlers=[handler],
+)
+ 
+logger = logging.getLogger(&quot;example&quot;)
+ 
+logger.info(&quot;Hello TwainMQ&quot;)
+</code></pre>
+<p>Consumer:</p>
+<pre><code class="language-python">from twainmq import Twain
+from twainmq.logger import LogEntry
+ 
+twain = Twain(&quot;./demo&quot;)
+twain.register_msg_cls(LogEntry)
+
+consumer = twain.consumer(&quot;logs&quot;)
+ 
+while msg := consumer.poll():
+    log = msg.message
+ 
+print(
+    f&quot;{log.level}: &quot;
+    f&quot;{log.logger}: &quot;
+    f&quot;{log.message}&quot;
+)
+</code></pre>
+<p>Output:</p>
+<p><code>plain text
+INFO: example: Hello TwainMQ</code></p>
+<p>This pattern turns Python logging into a distributed stream of structured events while remaining fully compatible with the standard logging module.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": [], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
+      
+    
+  </body>
+</html>
